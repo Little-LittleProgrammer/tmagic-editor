@@ -1,5 +1,5 @@
 {
-  "version": "1.4.6",
+  "version": "1.4.7",
   "name": "@tmagic/design",
   "type": "module",
   "sideEffects": [
@@ -16,6 +16,10 @@
     },
     "./*": "./*"
   },
+  "files": [
+    "dist",
+    "types"
+  ],
   "license": "Apache-2.0",
   "scripts": {
     "build": "npm run build:type && vite build",
@@ -43,8 +47,8 @@
     "@vue/compiler-sfc": "^3.4.27",
     "@vue/test-utils": "^2.4.6",
     "rimraf": "^3.0.2",
-    "vite": "^5.2.11",
-    "vue-tsc": "^2.0.16"
+    "vite": "^5.2.12",
+    "vue-tsc": "^2.0.19"
   },
   "peerDependencies": {
     "vue": "^3.4.27",

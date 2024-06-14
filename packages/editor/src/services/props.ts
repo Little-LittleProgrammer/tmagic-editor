@@ -20,13 +20,19 @@ import { reactive } from 'vue';
 import { cloneDeep, mergeWith } from 'lodash-es';
 import { Writable } from 'type-fest';
 
-import { type CustomTargetOptions, Target, Watcher } from '@tmagic/dep';
+import { Target, type TargetOptions, Watcher } from '@tmagic/dep';
 import type { FormConfig } from '@tmagic/form';
 import type { Id, MComponent, MNode } from '@tmagic/schema';
 import { getNodePath, getValueByKeyPath, guid, setValueByKeyPath, toLine } from '@tmagic/utils';
 
 import editorService from '@editor/services/editor';
-import type { AsyncHookPlugin, PropsState, SyncHookPlugin } from '@editor/type';
+import type {
+  AsyncHookPlugin,
+  PropsFormConfigFunction,
+  PropsFormValueFunction,
+  PropsState,
+  SyncHookPlugin,
+} from '@editor/type';
 import { fillConfig } from '@editor/utils/props';
 
 import BaseService from './BaseService';
@@ -60,7 +66,7 @@ class Props extends BaseService {
     ]);
   }
 
-  public setPropsConfigs(configs: Record<string, FormConfig>) {
+  public setPropsConfigs(configs: Record<string, FormConfig | PropsFormConfigFunction>) {
     Object.keys(configs).forEach((type: string) => {
       this.setPropsConfig(toLine(type), configs[type]);
     });
@@ -71,8 +77,13 @@ class Props extends BaseService {
     return fillConfig(config, typeof labelWidth !== 'function' ? labelWidth : '80px');
   }
 
-  public async setPropsConfig(type: string, config: FormConfig) {
-    this.state.propsConfigMap[toLine(type)] = await this.fillConfig(Array.isArray(config) ? config : [config]);
+  public async setPropsConfig(type: string, config: FormConfig | PropsFormConfigFunction) {
+    let c = config;
+    if (typeof config === 'function') {
+      c = config({ editorService });
+    }
+
+    this.state.propsConfigMap[toLine(type)] = await this.fillConfig(Array.isArray(c) ? c : [c]);
   }
 
   /**
@@ -88,7 +99,7 @@ class Props extends BaseService {
     return cloneDeep(this.state.propsConfigMap[toLine(type)] || (await this.fillConfig([])));
   }
 
-  public setPropsValues(values: Record<string, Partial<MNode>>) {
+  public setPropsValues(values: Record<string, Partial<MNode> | PropsFormValueFunction>) {
     Object.keys(values).forEach((type: string) => {
       this.setPropsValue(toLine(type), values[type]);
     });
@@ -99,8 +110,12 @@ class Props extends BaseService {
    * @param type 组件类型
    * @param value 组件初始值
    */
-  public async setPropsValue(type: string, value: Partial<MNode>) {
-    this.state.propsValueMap[toLine(type)] = value;
+  public async setPropsValue(type: string, value: Partial<MNode> | PropsFormValueFunction) {
+    let v = value;
+    if (typeof value === 'function') {
+      v = value({ editorService });
+    }
+    this.state.propsValueMap[toLine(type)] = v;
   }
 
   /**
@@ -195,20 +210,19 @@ class Props extends BaseService {
    * @param originConfigs 原组件配置
    * @param targetConfigs 待替换的组件配置
    */
-  public replaceRelateId(originConfigs: MNode[], targetConfigs: MNode[], collectorOptions: CustomTargetOptions) {
+  public replaceRelateId(originConfigs: MNode[], targetConfigs: MNode[], collectorOptions: TargetOptions) {
     const relateIdMap = this.getRelateIdMap();
 
     if (Object.keys(relateIdMap).length === 0) return;
 
     const target = new Target({
-      id: 'related-comp-when-copy',
       ...collectorOptions,
     });
 
     const coperWatcher = new Watcher();
 
     coperWatcher.addTarget(target);
-    coperWatcher.collect(originConfigs);
+    coperWatcher.collect(originConfigs, {}, true, collectorOptions.type);
 
     originConfigs.forEach((config: MNode) => {
       const newId = relateIdMap[config.id];

@@ -6,13 +6,12 @@
 import { inject } from 'vue';
 
 import type { Page } from '@tmagic/core';
-import Core from '@tmagic/core';
+import type Core from '@tmagic/core';
 import { addParamToUrl } from '@tmagic/utils';
 import { useDsl } from '@tmagic/vue-runtime-help';
 
-const { pageConfig } = useDsl();
-
 const app = inject<Core | undefined>('app');
+const { pageConfig } = useDsl(app);
 
 app?.on('page-change', (page?: Page) => {
   if (!page) {

@@ -3,7 +3,11 @@
 </template>
 
 <script lang="ts" setup>
+import { inject } from 'vue';
+
+import type Core from '@tmagic/core';
 import { useEditorDsl } from '@tmagic/vue-runtime-help';
 
-const { pageConfig } = useEditorDsl();
+const app = inject<Core | undefined>('app');
+const { pageConfig } = useEditorDsl(app);
 </script>

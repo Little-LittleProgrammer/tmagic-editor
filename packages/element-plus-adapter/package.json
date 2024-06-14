@@ -1,5 +1,5 @@
 {
-  "version": "1.4.6",
+  "version": "1.4.7",
   "name": "@tmagic/element-plus-adapter",
   "type": "module",
   "sideEffects": [
@@ -16,6 +16,10 @@
     },
     "./*": "./*"
   },
+  "files": [
+    "dist",
+    "types"
+  ],
   "license": "Apache-2.0",
   "scripts": {
     "build": "npm run build:type && vite build",
@@ -40,11 +44,11 @@
   "devDependencies": {
     "@types/node": "^18.19.0",
     "rimraf": "^3.0.2",
-    "vite": "^5.2.11"
+    "vite": "^5.2.12"
   },
   "peerDependencies": {
     "@tmagic/design": "workspace:*",
-    "element-plus": "^2.6.1",
+    "element-plus": "^2.7.4",
     "typescript": "*"
   },
   "peerDependenciesMeta": {

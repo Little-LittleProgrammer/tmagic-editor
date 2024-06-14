@@ -20,7 +20,7 @@ import { reactive, toRaw } from 'vue';
 import { cloneDeep, get, isObject, mergeWith, uniq } from 'lodash-es';
 import { Writable } from 'type-fest';
 
-import { type CustomTargetOptions, Target, Watcher } from '@tmagic/dep';
+import { Target, type TargetOptions, Watcher } from '@tmagic/dep';
 import type { Id, MApp, MComponent, MContainer, MNode, MPage, MPageFragment } from '@tmagic/schema';
 import { NodeType } from '@tmagic/schema';
 import { calcValueByFontsize, getNodePath, isNumber, isPage, isPageFragment, isPop } from '@tmagic/utils';
@@ -49,10 +49,22 @@ import {
   getPageFragmentList,
   getPageList,
   isFixed,
+  moveItemsInContainer,
   setChildrenLayout,
   setLayout,
 } from '@editor/utils/editor';
 import { beforePaste, getAddParent } from '@editor/utils/operator';
+
+export interface EditorEvents {
+  'root-change': [value: StoreState['root'], preValue?: StoreState['root']];
+  select: [node: MNode | null];
+  add: [nodes: MNode[]];
+  remove: [nodes: MNode[]];
+  update: [nodes: MNode[]];
+  'move-layer': [offset: number | LayerOffset];
+  'drag-to': [data: { targetIndex: number; configs: MNode | MNode[]; targetParent: MContainer }];
+  'history-change': [data: MPage | MPageFragment];
+}
 
 const canUsePluginMethods = {
   async: [
@@ -139,7 +151,7 @@ class Editor extends BaseService {
         this.state.stageLoading = false;
       }
 
-      this.emit('root-change', value, preValue);
+      this.emit('root-change', value as StoreState['root'], preValue as StoreState['root']);
     }
   }
 
@@ -660,13 +672,12 @@ class Editor extends BaseService {
    * @param config 组件节点配置
    * @returns
    */
-  public copyWithRelated(config: MNode | MNode[], collectorOptions?: CustomTargetOptions): void {
+  public copyWithRelated(config: MNode | MNode[], collectorOptions?: TargetOptions): void {
     const copyNodes: MNode[] = Array.isArray(config) ? config : [config];
 
     // 初始化复制组件相关的依赖收集器
     if (collectorOptions && typeof collectorOptions.isTarget === 'function') {
       const customTarget = new Target({
-        id: 'related-comp-when-copy',
         ...collectorOptions,
       });
 
@@ -674,12 +685,7 @@ class Editor extends BaseService {
 
       coperWatcher.addTarget(customTarget);
 
-      coperWatcher.collect(
-        copyNodes.map((node) => ({ id: `${node.id}`, name: `${node.name || node.id}` })),
-        {},
-        true,
-      );
-
+      coperWatcher.collect(copyNodes, {}, true, collectorOptions.type);
       Object.keys(customTarget.deps).forEach((nodeId: Id) => {
         const node = this.getNodeById(nodeId);
         if (!node) return;
@@ -706,10 +712,7 @@ class Editor extends BaseService {
    * @param position 粘贴的坐标
    * @returns 添加后的组件节点配置
    */
-  public async paste(
-    position: PastePosition = {},
-    collectorOptions?: CustomTargetOptions,
-  ): Promise<MNode | MNode[] | void> {
+  public async paste(position: PastePosition = {}, collectorOptions?: TargetOptions): Promise<MNode | MNode[] | void> {
     const config: MNode[] = storageService.getItem(COPY_STORAGE_KEY);
     if (!Array.isArray(config)) return;
 
@@ -886,34 +889,46 @@ class Editor extends BaseService {
     }
   }
 
-  public async dragTo(config: MNode, targetParent: MContainer, targetIndex: number) {
+  public async dragTo(config: MNode | MNode[], targetParent: MContainer, targetIndex: number) {
     if (!targetParent || !Array.isArray(targetParent.items)) return;
 
-    const { parent, node: curNode } = this.getNodeInfo(config.id, false);
-    if (!parent || !curNode) throw new Error('找不要删除的节点');
+    const configs = Array.isArray(config) ? config : [config];
 
-    const index = getNodeIndex(curNode.id, parent);
+    const sourceIndicesInTargetParent: number[] = [];
+    const sourceOutTargetParent: MNode[] = [];
 
-    if (typeof index !== 'number' || index === -1) throw new Error('找不要删除的节点');
+    const newLayout = await this.getLayout(targetParent);
 
-    if (parent.id === targetParent.id) {
-      if (index === targetIndex) return;
+    for (const config of configs) {
+      const { parent, node: curNode } = this.getNodeInfo(config.id, false);
+      if (!parent || !curNode) throw new Error('找不要删除的节点');
 
-      if (index < targetIndex) {
-        targetIndex -= 1;
+      const index = getNodeIndex(curNode.id, parent);
+
+      if (parent.id === targetParent.id) {
+        if (typeof index !== 'number' || index === -1) {
+          return;
+        }
+        sourceIndicesInTargetParent.push(index);
+      } else {
+        const layout = await this.getLayout(parent);
+
+        if (newLayout !== layout) {
+          setLayout(config, newLayout);
+        }
+
+        parent.items?.splice(index, 1);
+        sourceOutTargetParent.push(config);
+        this.addModifiedNodeId(parent.id);
       }
     }
 
-    const layout = await this.getLayout(parent);
-    const newLayout = await this.getLayout(targetParent);
+    moveItemsInContainer(sourceIndicesInTargetParent, targetParent, targetIndex);
 
-    if (newLayout !== layout) {
-      setLayout(config, newLayout);
-    }
-
-    parent.items?.splice(index, 1);
-
-    targetParent.items?.splice(targetIndex, 0, config);
+    sourceOutTargetParent.forEach((config, index) => {
+      targetParent.items?.splice(targetIndex + index, 0, config);
+      this.addModifiedNodeId(config.id);
+    });
 
     const page = this.get('page');
     const root = this.get('root');
@@ -927,12 +942,9 @@ class Editor extends BaseService {
       });
     }
 
-    this.addModifiedNodeId(config.id);
-    this.addModifiedNodeId(parent.id);
-
     this.pushHistoryState();
 
-    this.emit('drag-to', { index, targetIndex, config, parent, targetParent });
+    this.emit('drag-to', { targetIndex, configs, targetParent });
   }
 
   /**
@@ -1026,6 +1038,24 @@ class Editor extends BaseService {
 
   public usePlugin(options: AsyncHookPlugin<AsyncMethodName, Editor>): void {
     super.usePlugin(options);
+  }
+
+  public on<Name extends keyof EditorEvents, Param extends EditorEvents[Name]>(
+    eventName: Name,
+    listener: (...args: Param) => void | Promise<void>,
+  ) {
+    return super.on(eventName, listener as any);
+  }
+
+  public once<Name extends keyof EditorEvents, Param extends EditorEvents[Name]>(
+    eventName: Name,
+    listener: (...args: Param) => void | Promise<void>,
+  ) {
+    return super.once(eventName, listener as any);
+  }
+
+  public emit<Name extends keyof EditorEvents, Param extends EditorEvents[Name]>(eventName: Name, ...args: Param) {
+    return super.emit(eventName, ...args);
   }
 
   private addModifiedNodeId(id: Id) {

@@ -8,9 +8,9 @@
 import { computed } from 'vue';
 
 import { type MContainer, NodeType } from '@tmagic/schema';
+import { useApp } from '@tmagic/vue-runtime-help';
 
 import Container from '../../container';
-import useApp from '../../useApp';
 
 const props = withDefaults(
   defineProps<{
@@ -36,7 +36,11 @@ const { app } = useApp({
 });
 
 const configs = computed(() => {
-  const { iteratorData = [] } = props.config;
+  let { iteratorData = [] } = props.config;
+
+  if (!Array.isArray(iteratorData)) {
+    iteratorData = [];
+  }
 
   if (app?.platform === 'editor' && !iteratorData.length) {
     iteratorData.push({});

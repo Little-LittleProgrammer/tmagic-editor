@@ -3,13 +3,15 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent, inject } from 'vue';
 
+import type Core from '@tmagic/core';
 import { useEditorDsl } from '@tmagic/vue-runtime-help';
 
 export default defineComponent({
   setup() {
-    const { pageConfig } = useEditorDsl();
+    const app = inject<Core | undefined>('app');
+    const { pageConfig } = useEditorDsl(app);
 
     return {
       pageConfig,
