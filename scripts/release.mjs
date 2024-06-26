@@ -219,6 +219,21 @@ async function main() {
     await publishPackage(pkg, targetVersion, additionalPublishFlags);
   }
 
+  // update pnpm-lock.yaml
+  step('\nUpdating lockfile...');
+  await run(`pnpm`, ['install', '--prefer-offline']);
+
+  if (!skipGit) {
+    const { stdout } = await run('git', ['diff'], { stdio: 'pipe' });
+    if (stdout) {
+      step('\nCommitting changes...');
+      await runIfNotDry('git', ['add', '-A']);
+      await runIfNotDry('git', ['commit', '-m', `chore: update lockfile v${targetVersion}`, '--verify']);
+    } else {
+      console.log('No changes to commit.');
+    }
+  }
+
   // push to GitHub
   if (!skipGit) {
     step('\nPushing to GitHub...');

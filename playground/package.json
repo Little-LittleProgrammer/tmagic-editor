@@ -1,6 +1,6 @@
 {
   "name": "tmagic-playground",
-  "version": "1.4.7",
+  "version": "1.4.9",
   "type": "module",
   "private": true,
   "scripts": {
@@ -13,16 +13,16 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
-    "@tmagic/core": "1.4.7",
-    "@tmagic/design": "1.4.7",
-    "@tmagic/editor": "1.4.7",
-    "@tmagic/element-plus-adapter": "1.4.7",
-    "@tmagic/form": "1.4.7",
-    "@tmagic/tmagic-form-runtime": "1.0.2",
-    "@tmagic/schema": "1.4.7",
-    "@tmagic/stage": "1.4.7",
-    "@tmagic/utils": "1.4.7",
-    "element-plus": "^2.7.4",
+    "@tmagic/core": "1.4.9",
+    "@tmagic/design": "1.4.9",
+    "@tmagic/editor": "1.4.9",
+    "@tmagic/element-plus-adapter": "1.4.9",
+    "@tmagic/form": "1.4.9",
+    "@tmagic/tmagic-form-runtime": "1.0.11",
+    "@tmagic/schema": "1.4.9",
+    "@tmagic/stage": "1.4.9",
+    "@tmagic/utils": "1.4.9",
+    "element-plus": "^2.7.5",
     "lodash-es": "^4.17.21",
     "monaco-editor": "^0.48.0",
     "serialize-javascript": "^6.0.0",
@@ -42,6 +42,6 @@
     "typescript": "^5.4.5",
     "unplugin-auto-import": "^0.12.0",
     "unplugin-vue-components": "^0.22.11",
-    "vite": "^5.2.12"
+    "vite": "^5.3.1"
   }
 }
