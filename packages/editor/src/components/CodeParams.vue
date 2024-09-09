@@ -39,12 +39,22 @@ const getFormConfig = (items: FormConfig = []) => [
     type: 'fieldset',
     items,
     legend: '参数',
-    labelWidth: '70px',
+    labelWidth: '120px',
     name: props.name,
   },
 ];
 
-const codeParamsConfig = computed(() => getFormConfig(props.paramsConfig));
+const codeParamsConfig = computed(() =>
+  getFormConfig(
+    props.paramsConfig.map(({ name, text, extra, ...config }) => ({
+      type: 'data-source-field-select',
+      name,
+      text,
+      extra,
+      fieldConfig: config,
+    })),
+  ),
+);
 
 /**
  * 参数值修改更新

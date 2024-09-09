@@ -1,5 +1,5 @@
 <template>
-  <Framework :disabled-page-fragment="disabledPageFragment">
+  <Framework :disabled-page-fragment="disabledPageFragment" :page-bar-sort-options="pageBarSortOptions">
     <template #header>
       <slot name="header"></slot>
     </template>
@@ -31,6 +31,10 @@
 
           <template #layer-node-tool="{ data }">
             <slot name="layer-node-tool" :data="data"></slot>
+          </template>
+
+          <template #component-list="{ componentGroupList }">
+            <slot name="component-list" :component-group-list="componentGroupList"></slot>
           </template>
 
           <template #component-list-panel-header>
@@ -106,6 +110,7 @@
     <template #page-bar><slot name="page-bar"></slot></template>
     <template #page-bar-title="{ page }"><slot name="page-bar-title" :page="page"></slot></template>
     <template #page-bar-popover="{ page }"><slot name="page-bar-popover" :page="page"></slot></template>
+    <template #page-list-popover="{ list }"><slot name="page-list-popover" :list="list"></slot></template>
   </Framework>
 </template>
 

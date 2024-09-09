@@ -1,5 +1,5 @@
 {
-  "version": "1.4.9",
+  "version": "1.4.17",
   "name": "@tmagic/schema",
   "type": "module",
   "main": "dist/tmagic-schema.umd.cjs",
@@ -35,7 +35,7 @@
   "devDependencies": {
     "@types/node": "^18.19.0",
     "rimraf": "^3.0.2",
-    "vite": "^5.3.1"
+    "vite": "^5.3.5"
   },
   "peerDependencies": {
     "typescript": "*"

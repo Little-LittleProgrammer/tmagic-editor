@@ -139,6 +139,7 @@ export interface MComponent {
   style?: {
     [key: string]: any;
   };
+  displayConds?: DisplayCond[];
   [key: string]: any;
 }
 
@@ -285,3 +286,19 @@ export type HookData = {
   /** 参数 */
   params?: object;
 };
+
+export interface DisplayCondItem {
+  field: string[];
+  op: string;
+  value?: any;
+  range?: [number, number];
+}
+
+export interface DisplayCond {
+  cond: DisplayCondItem[];
+}
+
+export interface UiComponentProps<T extends MNode = MNode> {
+  config: T;
+  model?: any;
+}

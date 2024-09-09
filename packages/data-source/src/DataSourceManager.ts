@@ -20,13 +20,13 @@ import EventEmitter from 'events';
 
 import { cloneDeep } from 'lodash-es';
 
-import type { AppCore, DataSourceSchema, Id, MNode } from '@tmagic/schema';
+import type { AppCore, DataSourceSchema, DisplayCond, Id, MNode } from '@tmagic/schema';
 import { compiledNode } from '@tmagic/utils';
 
 import { SimpleObservedData } from './observed-data/SimpleObservedData';
 import { DataSource, HttpDataSource } from './data-sources';
 import type { ChangeEvent, DataSourceManagerData, DataSourceManagerOptions, ObservedDataClass } from './types';
-import { compiledNodeField, compliedConditions, compliedIteratorItems } from './utils';
+import { compiledNodeField, compliedConditions, compliedIteratorItemConditions, compliedIteratorItems } from './utils';
 
 class DataSourceManager extends EventEmitter {
   private static dataSourceClassMap = new Map<string, typeof DataSource>();
@@ -111,28 +111,21 @@ class DataSourceManager extends EventEmitter {
       return;
     }
 
-    const beforeInit: ((...args: any[]) => any)[] = [];
-    const afterInit: ((...args: any[]) => any)[] = [];
-
-    ds.methods.forEach((method) => {
+    for (const method of ds.methods) {
       if (typeof method.content !== 'function') return;
       if (method.timing === 'beforeInit') {
-        beforeInit.push(method.content);
+        method.content({ params: {}, dataSource: ds, app: this.app });
       }
-      if (method.timing === 'afterInit') {
-        afterInit.push(method.content);
-      }
-    });
-
-    for (const method of beforeInit) {
-      await method({ params: {}, dataSource: ds, app: this.app });
     }
 
     await ds.init();
 
-    for (const method of afterInit) {
-      await method({ params: {}, dataSource: ds, app: this.app });
-    }
+    ds.methods.forEach((method) => {
+      if (typeof method.content !== 'function') return;
+      if (method.timing === 'afterInit') {
+        method.content({ params: {}, dataSource: ds, app: this.app });
+      }
+    });
   }
 
   public get(id: string) {
@@ -214,11 +207,15 @@ class DataSourceManager extends EventEmitter {
     return compliedConditions(node, this.data);
   }
 
+  public compliedIteratorItemConds(itemData: any, displayConds: DisplayCond[] = []) {
+    return compliedIteratorItemConditions(displayConds, itemData);
+  }
+
   public compliedIteratorItems(itemData: any, items: MNode[], dataSourceField: string[] = []) {
     const [dsId, ...keys] = dataSourceField;
     const ds = this.get(dsId);
     if (!ds) return items;
-    return compliedIteratorItems(itemData, items, dsId, keys);
+    return compliedIteratorItems(itemData, items, dsId, keys, this.data, this.app.platform === 'editor');
   }
 
   public destroy() {

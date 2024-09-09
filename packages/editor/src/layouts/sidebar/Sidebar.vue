@@ -5,11 +5,11 @@
         class="m-editor-sidebar-header-item"
         v-for="(config, index) in sideBarItems"
         v-show="!floatBoxStates[config.$key]?.status"
-        draggable="true"
+        :draggable="config.draggable ?? true"
         :key="config.$key ?? index"
         :class="{ 'is-active': activeTabName === config.text }"
         :style="config.tabStyle || {}"
-        @click="activeTabName = config.text || config.$key || `${index}`"
+        @click="headerItemClickHandler(config, index)"
         @dragstart="dragstartHandler"
         @dragend="dragendHandler(config.$key, $event)"
       >
@@ -24,11 +24,23 @@
       v-show="[config.text, config.$key, `${index}`].includes(activeTabName)"
     >
       <component
-        v-if="config && !floatBoxStates[config.$key]?.status"
+        v-if="config?.component && !floatBoxStates[config.$key]?.status"
         :is="config.component"
         v-bind="config.props || {}"
         v-on="config?.listeners || {}"
       >
+        <template
+          #component-list="{ componentGroupList }"
+          v-if="config.$key === 'component-list' || config.slots?.componentList"
+        >
+          <slot
+            v-if="config.$key === 'component-list'"
+            name="component-list"
+            :component-group-list="componentGroupList"
+          ></slot>
+          <component v-else-if="config.slots?.componentList" :is="config.slots.componentList" />
+        </template>
+
         <template
           #component-list-panel-header
           v-if="config.$key === 'component-list' || config.slots?.componentListPanelHeader"
@@ -271,6 +283,15 @@ watch(
     activeTabName.value = nextSlideBarItem?.text;
   },
 );
+
+const headerItemClickHandler = async (config: SideComponent, index: number) => {
+  if (typeof config.beforeClick === 'function') {
+    if ((await config.beforeClick(config)) === false) {
+      return;
+    }
+  }
+  activeTabName.value = config.text || config.$key || `${index}`;
+};
 
 defineExpose({
   activeTabName,

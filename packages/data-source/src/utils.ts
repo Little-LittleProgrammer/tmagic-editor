@@ -1,7 +1,7 @@
 import { cloneDeep, template } from 'lodash-es';
 
 import { isDataSourceTemplate, isUseDataSourceField, Target, Watcher } from '@tmagic/dep';
-import type { MApp, MNode, MPage, MPageFragment } from '@tmagic/schema';
+import type { DepData, DisplayCond, DisplayCondItem, MApp, MNode, MPage, MPageFragment } from '@tmagic/schema';
 import {
   compiledCond,
   compiledNode,
@@ -16,28 +16,68 @@ import {
 import type { AsyncDataSourceResolveResult, DataSourceManagerData } from './types';
 
 /**
+ * 编译显示条件
+ * @param cond 条件配置
+ * @param data 上下文数据（数据源数据）
+ * @returns boolean
+ */
+export const compiledCondition = (cond: DisplayCondItem[], data: DataSourceManagerData) => {
+  let result = true;
+  for (const { op, value, range, field } of cond) {
+    const [sourceId, ...fields] = field;
+
+    const dsData = data[sourceId];
+
+    if (!dsData || !fields.length) {
+      break;
+    }
+
+    const fieldValue = getValueByKeyPath(fields.join('.'), dsData);
+
+    if (!compiledCond(op, fieldValue, value, range)) {
+      result = false;
+      break;
+    }
+  }
+
+  return result;
+};
+
+/**
  * 编译数据源条件组
  * @param node dsl节点
  * @param data 数据源数据
  * @returns boolean
  */
-export const compliedConditions = (node: MNode, data: DataSourceManagerData) => {
+export const compliedConditions = (node: { displayConds?: DisplayCond[] }, data: DataSourceManagerData) => {
   if (!node.displayConds || !Array.isArray(node.displayConds) || !node.displayConds.length) return true;
 
   for (const { cond } of node.displayConds) {
     if (!cond) continue;
 
+    if (compiledCondition(cond, data)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+/**
+ * 编译迭代器容器子项显示条件
+ * @param displayConds 条件组配置
+ * @param data 迭代器容器的迭代数据项
+ * @returns boolean
+ */
+export const compliedIteratorItemConditions = (displayConds: DisplayCond[] = [], data: DataSourceManagerData) => {
+  if (!displayConds || !Array.isArray(displayConds) || !displayConds.length) return true;
+
+  for (const { cond } of displayConds) {
+    if (!cond) continue;
+
     let result = true;
     for (const { op, value, range, field } of cond) {
-      const [sourceId, ...fields] = field;
-
-      const dsData = data[sourceId];
-
-      if (!dsData || !fields.length) {
-        break;
-      }
-
-      const fieldValue = getValueByKeyPath(fields.join('.'), data[sourceId]);
+      const fieldValue = getValueByKeyPath(field.join('.'), data);
 
       if (!compiledCond(op, fieldValue, value, range)) {
         result = false;
@@ -46,7 +86,7 @@ export const compliedConditions = (node: MNode, data: DataSourceManagerData) => 
     }
 
     if (result) {
-      return true;
+      return result;
     }
   }
 
@@ -69,8 +109,14 @@ export const updateNode = (node: MNode, dsl: MApp) => {
  * @param fields dsl节点字段，如a.b.c
  * @returns 数据上下文
  */
-export const createIteratorContentData = (itemData: any, dsId: string, fields: string[] = []) => {
+export const createIteratorContentData = (
+  itemData: any,
+  dsId: string,
+  fields: string[] = [],
+  dsData: DataSourceManagerData = {},
+) => {
   const data = {
+    ...dsData,
     [dsId]: {},
   };
 
@@ -139,11 +185,19 @@ export const compiledNodeField = (value: any, data: DataSourceManagerData) => {
   return value;
 };
 
-export const compliedIteratorItems = (itemData: any, items: MNode[], dsId: string, keys: string[] = []) => {
+export const compliedIteratorItems = (
+  itemData: any,
+  items: MNode[],
+  dsId: string,
+  keys: string[] = [],
+  data: DataSourceManagerData,
+  inEditor = false,
+) => {
   const watcher = new Watcher();
   watcher.addTarget(
     new Target({
       id: dsId,
+      type: 'data-source',
       isTarget: (key: string | number, value: any) => {
         if (`${key}`.startsWith(DSL_NODE_KEY_COPY_PREFIX)) {
           return false;
@@ -154,37 +208,98 @@ export const compliedIteratorItems = (itemData: any, items: MNode[], dsId: strin
     }),
   );
 
+  watcher.addTarget(
+    new Target({
+      id: dsId,
+      type: 'cond',
+      isTarget: (key, value) => {
+        // 使用data-source-field-select value: 'key' 可以配置出来
+        if (!Array.isArray(value) || value[0] !== dsId || !`${key}`.startsWith('displayConds')) return false;
+        return true;
+      },
+    }),
+  );
+
   watcher.collect(items, {}, true);
 
-  const { deps } = watcher.getTarget(dsId);
-  if (!Object.keys(deps).length) {
+  const { deps } = watcher.getTarget(dsId, 'data-source');
+  const { deps: condDeps } = watcher.getTarget(dsId, 'cond');
+
+  if (!Object.keys(deps).length && !Object.keys(condDeps).length) {
     return items;
   }
 
-  return items.map((item) => {
-    if (!deps[item.id]?.keys.length) {
-      return item;
-    }
-
-    return compiledNode(
-      (value: any) => {
-        const ctxData = createIteratorContentData(itemData, dsId, keys);
-        return compiledNodeField(value, ctxData);
-      },
-      cloneDeep(item),
-      {
-        [dsId]: deps,
-      },
-      dsId,
-    );
-  });
+  return items.map((item) => compliedIteratorItem({ itemData, data, dsId, keys, inEditor, condDeps, item, deps }));
 };
 
+const compliedIteratorItem = ({
+  itemData,
+  data,
+  dsId,
+  keys,
+  inEditor,
+  condDeps,
+  item,
+  deps,
+}: {
+  itemData: any;
+  data: DataSourceManagerData;
+  dsId: string;
+  keys: string[];
+  inEditor: boolean;
+  condDeps: DepData;
+  item: MNode;
+  deps: DepData;
+}) => {
+  const { items, ...node } = item;
+  const newNode = cloneDeep(node);
+
+  if (items && !item.iteratorData) {
+    newNode.items = Array.isArray(items)
+      ? items.map((item) => compliedIteratorItem({ itemData, data, dsId, keys, inEditor, condDeps, item, deps }))
+      : items;
+  }
+
+  if (Array.isArray(items) && items.length) {
+    if (item.iteratorData) {
+      newNode.items = items;
+    } else {
+      newNode.items = items.map((item) =>
+        compliedIteratorItem({ itemData, data, dsId, keys, inEditor, condDeps, item, deps }),
+      );
+    }
+  } else {
+    newNode.items = items;
+  }
+
+  const ctxData = createIteratorContentData(itemData, dsId, keys, data);
+
+  if (condDeps[newNode.id]?.keys.length && !inEditor) {
+    newNode.condResult = compliedConditions(newNode, ctxData);
+  }
+
+  if (!deps[newNode.id]?.keys.length) {
+    return newNode;
+  }
+
+  return compiledNode(
+    (value: any) => compiledNodeField(value, ctxData),
+    newNode,
+    {
+      [dsId]: deps,
+    },
+    dsId,
+  );
+};
+
+/**
+ * 按需加载数据源
+ */
 export const registerDataSourceOnDemand = async (
   dsl: MApp,
   dataSourceModules: Record<string, () => Promise<AsyncDataSourceResolveResult>>,
 ) => {
-  const { dataSourceCondDeps = {}, dataSourceDeps = {}, dataSources = [] } = dsl;
+  const { dataSourceMethodsDeps = {}, dataSourceCondDeps = {}, dataSourceDeps = {}, dataSources = [] } = dsl;
 
   const dsModuleMap: Record<string, () => Promise<AsyncDataSourceResolveResult>> = {};
 
@@ -193,6 +308,10 @@ export const registerDataSourceOnDemand = async (
 
     if (!Object.keys(dep).length) {
       dep = dataSourceDeps[ds.id] || {};
+    }
+
+    if (!Object.keys(dep).length) {
+      dep = dataSourceMethodsDeps[ds.id] || {};
     }
 
     if (Object.keys(dep).length && dataSourceModules[ds.type]) {

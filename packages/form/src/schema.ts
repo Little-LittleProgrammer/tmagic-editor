@@ -170,6 +170,7 @@ export type FilterFunction<T = boolean> = (
     formValue: Record<any, any>;
     prop: string;
     config: any;
+    index?: number;
   },
 ) => T;
 
@@ -295,6 +296,9 @@ export interface DaterangeConfig extends FormItem {
   type: 'daterange';
   defaultTime?: Date[];
   names?: string[];
+  valueFormat?: string;
+  dateFormat?: string;
+  timeFormat?: string;
 }
 
 /**
@@ -433,18 +437,18 @@ export interface ColorPickConfig extends FormItem {
   type: 'colorPicker';
 }
 
+export interface CheckboxGroupOption {
+  value: any;
+  text: string;
+  disabled?: boolean;
+}
+
 /**
  * 多选框组
  */
 export interface CheckboxGroupConfig extends FormItem {
   type: 'checkbox-group';
-  options:
-    | {
-        value: any;
-        text: string;
-        disabled?: boolean;
-      }[]
-    | Function;
+  options: CheckboxGroupOption[] | FilterFunction<CheckboxGroupOption[]>;
 }
 
 /**

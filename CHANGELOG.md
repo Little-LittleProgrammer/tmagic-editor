@@ -1,3 +1,117 @@
+## [1.4.17](https://github.com/Tencent/tmagic-editor/compare/v1.4.16...v1.4.17) (2024-08-30)
+
+
+### Bug Fixes
+
+* **data-source:** 编辑器的runtime不能对数据源的mock配置有影响 ([fa2d00b](https://github.com/Tencent/tmagic-editor/commit/fa2d00ba3689b9b336a5a2d44c731a3fa4ce61f6))
+* **form:** date相关的field,在没有配置valueFormat的情况下与默认的valueFormat不符 ([883e227](https://github.com/Tencent/tmagic-editor/commit/883e227d54c7f07b13bb190bc5f97a9e63671193))
+
+
+### Features
+
+* **vue-runtime-help:** 只有dsl中的组件才触发生命周期hook ([69f3cb2](https://github.com/Tencent/tmagic-editor/commit/69f3cb2f12d8b2e18ac957caa5f655024cbc8577))
+
+
+
+## [1.4.16](https://github.com/Tencent/tmagic-editor/compare/v1.4.15...v1.4.16) (2024-08-02)
+
+
+### Bug Fixes
+
+* **ui:** 页面style没有响应式了 ([81a221e](https://github.com/Tencent/tmagic-editor/commit/81a221e56171c299d9599f4440557e822c2fc186))
+
+
+### Features
+
+* **core:** 完善屏幕大小自动适配 ([59f0527](https://github.com/Tencent/tmagic-editor/commit/59f05270ae019d4baa04d7c2ce86a5c88e05e16b))
+
+
+
+## [1.4.15](https://github.com/Tencent/tmagic-editor/compare/v1.4.14...v1.4.15) (2024-07-26)
+
+
+### Bug Fixes
+
+* **data-source:** 迭代器数据编译支持容器嵌套 ([e209aa3](https://github.com/Tencent/tmagic-editor/commit/e209aa36e88ff567932e6374cae37097c19b6883))
+* **editor:** 在组件树中多选时不能选中页面 ([c456798](https://github.com/Tencent/tmagic-editor/commit/c45679875162069033096b307c06320346798d76))
+* **editor:** 数据源方法配置，设置后再次修改参数配置不显示 ([059c005](https://github.com/Tencent/tmagic-editor/commit/059c0056c4e9d3ef7f247e3ed19c3c02fd84b65f))
+* **editor:** 组件树中将容器拖入自身中会导致容器丢失 ([16d4eff](https://github.com/Tencent/tmagic-editor/commit/16d4eff3859923c44cb9662210538c5ff47d793d)), closes [#622](https://github.com/Tencent/tmagic-editor/issues/622)
+* **editor:** 组件树右键菜单在组件树面板拖出时被面板遮挡 ([72a7c15](https://github.com/Tencent/tmagic-editor/commit/72a7c151e9d5f40393f94870d550a917adac41c8)), closes [#624](https://github.com/Tencent/tmagic-editor/issues/624)
+* **stage:** 页面失焦时将alt键按下状态重置 ([96224b4](https://github.com/Tencent/tmagic-editor/commit/96224b4d9254b6584dd0bb48ae1acc144cc00783))
+
+
+### Features
+
+* **data-source:** 数据源新增setValue方法 ([8d111ea](https://github.com/Tencent/tmagic-editor/commit/8d111ea976c397e70b6040e034ed6f85a49bc4b3))
+* **editor:** 优化编辑器左边栏拖出体验，需要拖出一定距离才行 ([b249563](https://github.com/Tencent/tmagic-editor/commit/b249563f9442023d66180f5396649277889cf69c))
+* **editor:** 数据源选择器编辑按钮添加tooltip ([3fa21fd](https://github.com/Tencent/tmagic-editor/commit/3fa21fd3eb91882e40e84a59b8b5e541876b9c92))
+* **editor:** 添加component-list slot，用于自定义组件列表 ([0bbf7c5](https://github.com/Tencent/tmagic-editor/commit/0bbf7c564394a56bb6c99572240bba23b4e2919d)), closes [#621](https://github.com/Tencent/tmagic-editor/issues/621)
+* **editor:** 编辑器左边栏支持配置不可拖出，支持before-click函数配置 ([837daf6](https://github.com/Tencent/tmagic-editor/commit/837daf6cabcaa6110b99b020288097f25d8c05b9))
+
+
+
+## [1.4.14](https://github.com/Tencent/tmagic-editor/compare/v1.4.13...v1.4.14) (2024-07-12)
+
+
+### Bug Fixes
+
+* **data-source:** 迭代条件条件组编译逻辑不对 ([1fc04b4](https://github.com/Tencent/tmagic-editor/commit/1fc04b44641df1c478fb6bf5236752e43ead830f))
+
+
+
+## [1.4.13](https://github.com/Tencent/tmagic-editor/compare/v1.4.12...v1.4.13) (2024-07-04)
+
+
+### Bug Fixes
+
+* **data-source:** 按需加载数据源时需要分享数据源方法依赖 ([1e93e9b](https://github.com/Tencent/tmagic-editor/commit/1e93e9bacce4ec52c96b82c9af1433b6e1f17195))
+* **editor:** 修复新增第一个显示条件时会重置表单状态 ([eb376b2](https://github.com/Tencent/tmagic-editor/commit/eb376b261baa0dd6bee1f63c02c4d52fbf93cb41))
+
+
+
+## [1.4.12](https://github.com/Tencent/tmagic-editor/compare/v1.4.11...v1.4.12) (2024-07-02)
+
+
+### Bug Fixes
+
+* **dep:** 数据源源方法依赖收集，数据源类内定义的方法需要被收集 ([c8870c5](https://github.com/Tencent/tmagic-editor/commit/c8870c5c129736c85fb005191501efd6a60665bb))
+* **editor:** 更新容器后，需要将容器内的依赖重新收集 ([aabca93](https://github.com/Tencent/tmagic-editor/commit/aabca93c27a73baf051c4d650224e09553b28f8f))
+
+
+
+## [1.4.11](https://github.com/Tencent/tmagic-editor/compare/v1.4.10...v1.4.11) (2024-07-02)
+
+
+### Bug Fixes
+
+* **editor:** 迭代器容器子项条件配置中值输入类型 ([022c10f](https://github.com/Tencent/tmagic-editor/commit/022c10f2df9bc8ac904487ac9bc7b431873b8588))
+* **form:** 修复 grouplist 添加项时没有调用 changeHandler 的问题 ([c089ada](https://github.com/Tencent/tmagic-editor/commit/c089adae9e377d49d62adec23394e32a737cbb6e))
+
+
+### Features
+
+* **data-source:** 迭代器容器内容支持显示条件配置 ([ecfaff2](https://github.com/Tencent/tmagic-editor/commit/ecfaff2e0d4a14e41cf7fe4f2cc51377da401f52))([882d222](https://github.com/Tencent/tmagic-editor/commit/882d222800c532dd70f343f1b5b13c994d02551c))
+* **editor:** 优化数据源字段选择器交互 ([ef04fd3](https://github.com/Tencent/tmagic-editor/commit/ef04fd31f0a348070c5e42b5c7c5caa724066b21)) ([6cdeaa0](https://github.com/Tencent/tmagic-editor/commit/6cdeaa0c1bd8b5c379153dd32136e4244c7e2a2b))
+
+
+
+## [1.4.10](https://github.com/Tencent/tmagic-editor/compare/v1.4.9...v1.4.10) (2024-06-28)
+
+
+### Bug Fixes
+
+* **form,design:** 支持行内表单 ([77f13fa](https://github.com/Tencent/tmagic-editor/commit/77f13fa8981c16e9596856e46c8397adee7cf51a))
+* **stage:** 标尺销毁后没有移除对应的dom ([0796799](https://github.com/Tencent/tmagic-editor/commit/079679997aed97bb28c8dc03f53565be93abf3fe)), closes [#617](https://github.com/Tencent/tmagic-editor/issues/617)
+
+
+### Features
+
+* **dats-source,editor,form,schema,ui:** 迭代器容器支持配置子项显示条件 ([a164e2b](https://github.com/Tencent/tmagic-editor/commit/a164e2be62a34bbf4a9896becd738adf72dd2fd4))
+* **editor:** 优化数据源字段选择器交互 ([0ffc223](https://github.com/Tencent/tmagic-editor/commit/0ffc223459c9aee06ba557d13e79f8f21087f726))
+* **editor:** 支持拖拽调整页面顺序 ([0c5485b](https://github.com/Tencent/tmagic-editor/commit/0c5485b1d0c073e19f142e88574f086e695e77c9))
+
+
+
 ## [1.4.9](https://github.com/Tencent/tmagic-editor/compare/v1.4.8...v1.4.9) (2024-06-17)
 
 
