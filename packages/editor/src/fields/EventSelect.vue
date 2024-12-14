@@ -20,6 +20,7 @@
         :key="index"
         :disabled="disabled"
         :size="size"
+        :prop="`${prop}.${index}`"
         :config="actionsConfig"
         :model="cardItem"
         :label-width="config.labelWidth || '100px'"
@@ -32,7 +33,8 @@
             :model="cardItem"
             :disabled="disabled"
             :size="size"
-            @change="onChangeHandler"
+            :prop="`${prop}.${index}`"
+            @change="eventNameChangeHandler"
           ></MFormContainer>
           <TMagicButton
             style="color: #f56c6c"
@@ -53,15 +55,22 @@ import { computed, inject } from 'vue';
 import { Delete } from '@element-plus/icons-vue';
 import { has } from 'lodash-es';
 
-import type { EventOption } from '@tmagic/core';
+import type { EventOption, MComponent, MContainer } from '@tmagic/core';
+import { ActionType } from '@tmagic/core';
 import { TMagicButton } from '@tmagic/design';
-import type { CascaderOption, ChildConfig, FieldProps, FormState, PanelConfig } from '@tmagic/form';
+import type {
+  CascaderOption,
+  ChildConfig,
+  ContainerChangeEventData,
+  FieldProps,
+  FormState,
+  PanelConfig,
+} from '@tmagic/form';
 import { MContainer as MFormContainer, MPanel } from '@tmagic/form';
-import { ActionType, type MComponent, type MContainer } from '@tmagic/schema';
-import { DATA_SOURCE_FIELDS_CHANGE_EVENT_PREFIX } from '@tmagic/utils';
+import { DATA_SOURCE_FIELDS_CHANGE_EVENT_PREFIX, traverseNode } from '@tmagic/utils';
 
 import type { CodeSelectColConfig, DataSourceMethodSelectConfig, EventSelectConfig, Services } from '@editor/type';
-import { getCascaderOptionsFromFields, traverseNode } from '@editor/utils';
+import { getCascaderOptionsFromFields } from '@editor/utils';
 
 defineOptions({
   name: 'MFieldsEventSelect',
@@ -69,7 +78,9 @@ defineOptions({
 
 const props = defineProps<FieldProps<EventSelectConfig>>();
 
-const emit = defineEmits(['change']);
+const emit = defineEmits<{
+  change: [v: any, eventData?: ContainerChangeEventData];
+}>();
 
 const services = inject<Services>('services');
 
@@ -108,7 +119,7 @@ const eventNameConfig = computed(() => {
           if (pageFragment) {
             events = [
               {
-                label: pageFragment.name || '迭代器容器',
+                label: pageFragment.name || '页面片容器',
                 value: pageFragment.id,
                 children: events,
               },
@@ -355,21 +366,27 @@ const addEvent = () => {
     name: '',
     actions: [],
   };
+
   if (!props.model[props.name]) {
     props.model[props.name] = [];
   }
-  props.model[props.name].push(defaultEvent);
-  onChangeHandler();
+
+  emit('change', defaultEvent, {
+    modifyKey: props.model[props.name].length,
+  });
 };
 
 // 删除事件
 const removeEvent = (index: number) => {
   if (!props.name) return;
   props.model[props.name].splice(index, 1);
-  onChangeHandler();
+  emit('change', props.model[props.name]);
 };
 
-const onChangeHandler = () => {
-  emit('change', props.model);
+const eventNameChangeHandler = (v: any, eventData: ContainerChangeEventData) => {
+  emit('change', props.model[props.name], eventData);
 };
+
+const onChangeHandler = (v: any, eventData: ContainerChangeEventData) =>
+  emit('change', props.model[props.name], eventData);
 </script>

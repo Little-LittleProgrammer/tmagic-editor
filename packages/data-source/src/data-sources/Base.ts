@@ -19,8 +19,8 @@ import EventEmitter from 'events';
 
 import { cloneDeep } from 'lodash-es';
 
-import type { AppCore, CodeBlockContent, DataSchema, DataSourceSchema } from '@tmagic/schema';
-import { getDefaultValueFromFields } from '@tmagic/utils';
+import type { CodeBlockContent, DataSchema, DataSourceSchema, default as TMagicApp } from '@tmagic/core';
+import { getDefaultValueFromFields } from '@tmagic/core';
 
 import { ObservedData } from '@data-source/observed-data/ObservedData';
 import { SimpleObservedData } from '@data-source/observed-data/SimpleObservedData';
@@ -33,7 +33,7 @@ export default class DataSource<T extends DataSourceSchema = DataSourceSchema> e
   public isInit = false;
 
   /** @tmagic/core 实例 */
-  public app: AppCore;
+  public app: TMagicApp;
 
   protected mockData?: Record<string | number, any>;
 
@@ -67,8 +67,8 @@ export default class DataSource<T extends DataSourceSchema = DataSourceSchema> e
       data = cloneDeep(this.mockData);
     } else if (typeof options.useMock === 'boolean' && options.useMock) {
       // 设置了使用mock就使用mock数据
-      this.mockData = options.schema.mocks?.find((mock) => mock.enable)?.data || this.getDefaultData();
-      data = this.mockData;
+      this.mockData = options.schema.mocks?.find((mock) => mock.enable)?.data;
+      data = this.mockData || this.getDefaultData();
     } else if (!options.initialData) {
       data = this.getDefaultData();
     } else {

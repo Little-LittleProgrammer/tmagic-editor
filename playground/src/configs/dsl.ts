@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { ActionType, type MApp, NodeType } from '@tmagic/schema';
+import { ActionType, type MApp, NodeType } from '@tmagic/core';
 
 const dsl: MApp = {
   id: '1',
@@ -45,6 +45,22 @@ const dsl: MApp = {
       name: 'getList',
       content: () => {
         console.log('this is getList function');
+      },
+      params: [],
+    },
+    code_5317: {
+      name: 'code1',
+      content: ({ flowState }) => {
+        console.log('code1: set flowState.name=lisa');
+        flowState.name = 'lisa';
+      },
+      params: [],
+    },
+    code_5318: {
+      name: 'code2',
+      content: ({ flowState }) => {
+        console.log('print flowState.name', flowState.name);
+        flowState.abort();
       },
       params: [],
     },
@@ -136,6 +152,7 @@ const dsl: MApp = {
           text: 'Tmagic editor 营销活动编辑器',
           multiple: true,
           events: [],
+          displayConds: [],
         },
         {
           type: 'qrcode',
@@ -160,6 +177,7 @@ const dsl: MApp = {
           url: 'https://github.com/Tencent/tmagic-editor',
           events: [],
           created: [],
+          displayConds: [],
         },
         {
           type: 'img',
@@ -185,6 +203,7 @@ const dsl: MApp = {
           url: '',
           events: [],
           created: [],
+          displayConds: [],
         },
         {
           type: 'button',
@@ -229,6 +248,7 @@ const dsl: MApp = {
             },
           ],
           created: [],
+          displayConds: [],
         },
         {
           type: 'overlay',
@@ -463,14 +483,6 @@ const dsl: MApp = {
       afterResponse: '',
     },
   ],
-  dataSourceDeps: {
-    ds_b64c92b5: {
-      button_430: {
-        name: '按钮',
-        keys: ['text'],
-      },
-    },
-  },
 };
 
 export default dsl;

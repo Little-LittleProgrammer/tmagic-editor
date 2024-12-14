@@ -1,5 +1,9 @@
 <template>
-  <Framework :disabled-page-fragment="disabledPageFragment" :page-bar-sort-options="pageBarSortOptions">
+  <Framework
+    :disabled-page-fragment="disabledPageFragment"
+    :page-bar-sort-options="pageBarSortOptions"
+    :page-filter-function="pageFilterFunction"
+  >
     <template #header>
       <slot name="header"></slot>
     </template>
@@ -16,7 +20,13 @@
 
     <template #sidebar>
       <slot name="sidebar" :editorService="editorService">
-        <Sidebar :data="sidebar" :layer-content-menu="layerContentMenu" :custom-content-menu="customContentMenu">
+        <Sidebar
+          :data="sidebar"
+          :layer-content-menu="layerContentMenu"
+          :custom-content-menu="customContentMenu"
+          :indent="treeIndent"
+          :next-level-indent-increment="treeNextLevelIndentIncrement"
+        >
           <template #layer-panel-header>
             <slot name="layer-panel-header"></slot>
           </template>
@@ -108,6 +118,7 @@
     </template>
 
     <template #page-bar><slot name="page-bar"></slot></template>
+    <template #page-bar-add-button><slot name="page-bar-add-button"></slot></template>
     <template #page-bar-title="{ page }"><slot name="page-bar-title" :page="page"></slot></template>
     <template #page-bar-popover="{ page }"><slot name="page-bar-popover" :page="page"></slot></template>
     <template #page-list-popover="{ list }"><slot name="page-list-popover" :list="list"></slot></template>
@@ -119,7 +130,7 @@ import { EventEmitter } from 'events';
 
 import { provide } from 'vue';
 
-import type { MApp } from '@tmagic/schema';
+import type { MApp } from '@tmagic/core';
 
 import Framework from './layouts/Framework.vue';
 import TMagicNavMenu from './layouts/NavMenu.vue';
@@ -141,7 +152,15 @@ import uiService from './services/ui';
 import keybindingConfig from './utils/keybinding-config';
 import { defaultEditorProps, EditorProps } from './editorProps';
 import { initServiceEvents, initServiceState } from './initService';
-import type { EventBus, FrameworkSlots, PropsPanelSlots, Services, SidebarSlots, WorkspaceSlots } from './type';
+import type {
+  EventBus,
+  FrameworkSlots,
+  PropsPanelSlots,
+  Services,
+  SidebarSlots,
+  StageOptions,
+  WorkspaceSlots,
+} from './type';
 
 defineSlots<
   FrameworkSlots &
@@ -186,7 +205,7 @@ initServiceState(props, services);
 keybindingService.register(keybindingConfig);
 keybindingService.registerEl('global');
 
-const stageOptions = {
+const stageOptions: StageOptions = {
   runtimeUrl: props.runtimeUrl,
   autoScrollIntoView: props.autoScrollIntoView,
   render: props.render,

@@ -41,10 +41,10 @@
 import { computed, getCurrentInstance, inject, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue';
 import { Document as DocumentIcon } from '@element-plus/icons-vue';
 
+import type { MNode } from '@tmagic/core';
 import { TMagicButton } from '@tmagic/design';
-import type { FormState, FormValue } from '@tmagic/form';
+import type { ContainerChangeEventData, FormState, FormValue } from '@tmagic/form';
 import { MForm } from '@tmagic/form';
-import type { MNode } from '@tmagic/schema';
 
 import MIcon from '@editor/components/Icon.vue';
 import { useEditorContentHeight } from '@editor/hooks/use-editor-content-height';
@@ -110,10 +110,10 @@ watchEffect(() => {
   }
 });
 
-const submit = async () => {
+const submit = async (v: FormValue, eventData: ContainerChangeEventData) => {
   try {
     const values = await configForm.value?.submitForm();
-    services?.editorService.update(values);
+    services?.editorService.update(values, { changeRecords: eventData.changeRecords });
   } catch (e: any) {
     emit('submit-error', e);
   }

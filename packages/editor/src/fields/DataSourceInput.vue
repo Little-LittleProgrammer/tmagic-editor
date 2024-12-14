@@ -1,12 +1,12 @@
 <template>
   <component
     v-if="disabled || isFocused"
-    :is="getConfig('components')?.autocomplete.component || 'el-autocomplete'"
+    :is="getDesignConfig('components')?.autocomplete.component || 'el-autocomplete'"
     class="tmagic-design-auto-complete"
     ref="autocomplete"
     v-model="state"
     v-bind="
-      getConfig('components')?.autocomplete.props({
+      getDesignConfig('components')?.autocomplete.props({
         disabled,
         size,
         fetchSuggestions: querySearch,
@@ -51,10 +51,10 @@
 import { computed, inject, nextTick, ref, watch } from 'vue';
 import { Coin } from '@element-plus/icons-vue';
 
-import { getConfig, TMagicAutocomplete, TMagicTag } from '@tmagic/design';
+import type { DataSchema, DataSourceSchema } from '@tmagic/core';
+import { getDesignConfig, TMagicAutocomplete, TMagicTag } from '@tmagic/design';
 import type { FieldProps, FormItem } from '@tmagic/form';
-import type { DataSchema, DataSourceSchema } from '@tmagic/schema';
-import { isNumber } from '@tmagic/utils';
+import { getKeysArray, isNumber } from '@tmagic/utils';
 
 import Icon from '@editor/components/Icon.vue';
 import type { Services } from '@editor/type';
@@ -218,7 +218,7 @@ const fieldQuerySearch = (
   const dsKey = queryString.substring(leftAngleIndex + 1, dotIndex);
 
   // 可能是xx.xx.xx，存在链式调用
-  const keys = dsKey.replaceAll(/\[(\d+)\]/g, '.$1').split('.');
+  const keys = getKeysArray(dsKey);
 
   // 最前的是数据源id
   const dsId = keys.shift();

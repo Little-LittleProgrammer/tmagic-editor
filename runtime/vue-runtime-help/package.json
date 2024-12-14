@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.5",
   "name": "@tmagic/vue-runtime-help",
   "type": "module",
   "sideEffects": false,
@@ -7,7 +7,7 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./types/index.d.ts",
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
     "./*": "./*"
@@ -29,23 +29,20 @@
     "url": "https://github.com/Tencent/tmagic-editor.git"
   },
   "dependencies": {
-    "vue-demi": "^0.14.7"
+    "vue-demi": "^0.14.10"
   },
   "peerDependencies": {
-    "@tmagic/core": ">=1.4.16",
-    "@tmagic/data-source": ">=1.4.16",
-    "@tmagic/schema": ">=1.4.16",
-    "@tmagic/stage": ">=1.4.16",
-    "@tmagic/utils": ">=1.4.16",
+    "@tmagic/core": ">=1.5.0-beta.14",
+    "@tmagic/stage": ">=1.5.0-beta.14",
     "@vue/composition-api": ">=1.7.2",
     "typescript": "*",
-    "vue": ">=2.0.0 || >=3.0.0"
+    "vue": ">=2.6.0 || >=3.5.0"
   },
   "peerDependenciesMeta": {
     "@vue/composition-api": {
       "optional": true
     },
-    "@tmagic/schema": {
+    "@tmagic/core": {
       "optional": true
     },
     "@tmagic/stage": {
@@ -57,6 +54,7 @@
   },
   "devDependencies": {
     "@types/node": "^18.19.0",
+    "@vue/test-utils": "^2.4.6",
     "rimraf": "^3.0.2"
   }
 }

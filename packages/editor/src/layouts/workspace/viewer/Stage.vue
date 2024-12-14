@@ -3,6 +3,8 @@
     class="m-editor-stage"
     ref="stageWrap"
     tabindex="-1"
+    v-loading="stageLoading"
+    element-loading-text="Runtime 加载中..."
     :width="stageRect?.width"
     :height="stageRect?.height"
     :wrap-width="stageContainerRect?.width"
@@ -44,14 +46,14 @@
 import { computed, inject, markRaw, nextTick, onBeforeUnmount, onMounted, ref, toRaw, watch, watchEffect } from 'vue';
 import { cloneDeep } from 'lodash-es';
 
-import type { MApp, MContainer } from '@tmagic/schema';
+import type { MApp, MContainer } from '@tmagic/core';
 import StageCore, { getOffset, Runtime } from '@tmagic/stage';
-import { calcValueByFontsize } from '@tmagic/utils';
+import { calcValueByFontsize, getIdFromEl } from '@tmagic/utils';
 
 import ScrollViewer from '@editor/components/ScrollViewer.vue';
 import { useStage } from '@editor/hooks/use-stage';
 import { DragType, Layout, type MenuButton, type MenuComponent, type Services, type StageOptions } from '@editor/type';
-import { getConfig } from '@editor/utils/config';
+import { getEditorConfig } from '@editor/utils/config';
 import { KeyBindingContainerKey } from '@editor/utils/keybinding-config';
 
 import NodeListMenu from './NodeListMenu.vue';
@@ -62,8 +64,9 @@ defineOptions({
   name: 'MEditorStage',
 });
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
+    stageOptions: StageOptions;
     stageContentMenu: (MenuButton | MenuComponent)[];
     disabledStageOverlay?: boolean;
     customContentMenu?: (menus: (MenuButton | MenuComponent)[], type: string) => (MenuButton | MenuComponent)[];
@@ -77,7 +80,8 @@ let stage: StageCore | null = null;
 let runtime: Runtime | null = null;
 
 const services = inject<Services>('services');
-const stageOptions = inject<StageOptions>('stageOptions');
+
+const stageLoading = computed(() => services?.editorService.get('stageLoading') || false);
 
 const stageWrap = ref<InstanceType<typeof ScrollViewer>>();
 const stageContainer = ref<HTMLDivElement>();
@@ -96,9 +100,9 @@ watchEffect(() => {
   if (stage || !page.value) return;
 
   if (!stageContainer.value) return;
-  if (!(stageOptions?.runtimeUrl || stageOptions?.render) || !root.value) return;
+  if (!(props.stageOptions?.runtimeUrl || props.stageOptions?.render) || !root.value) return;
 
-  stage = useStage(stageOptions);
+  stage = useStage(props.stageOptions);
 
   stage.on('select', () => {
     stageWrap.value?.container?.focus();
@@ -123,14 +127,30 @@ watchEffect(() => {
   });
 });
 
+onBeforeUnmount(() => {
+  stage?.destroy();
+  services?.editorService.set('stage', null);
+});
+
 watch(zoom, (zoom) => {
   if (!stage || !zoom) return;
   stage.setZoom(zoom);
 });
 
+let timeoutId: NodeJS.Timeout | null = null;
 watch(page, (page) => {
   if (runtime && page) {
     services?.editorService.set('stageLoading', true);
+
+    if (timeoutId) {
+      globalThis.clearTimeout(timeoutId);
+    }
+
+    timeoutId = globalThis.setTimeout(() => {
+      services?.editorService.set('stageLoading', false);
+      timeoutId = null;
+    }, 3000);
+
     runtime.updatePageId?.(page.id);
     nextTick(() => {
       stage?.select(page.id);
@@ -170,7 +190,7 @@ onBeforeUnmount(() => {
   services?.editorService.off('root-change', rootChangeHandler);
 });
 
-const parseDSL = getConfig('parseDSL');
+const parseDSL = getEditorConfig('parseDSL');
 
 const contextmenuHandler = (e: MouseEvent) => {
   e.preventDefault();
@@ -196,19 +216,22 @@ const dropHandler = async (e: DragEvent) => {
 
   e.preventDefault();
 
-  const doc = stage?.renderer.contentWindow?.document;
-  const parentEl: HTMLElement | null | undefined = doc?.querySelector(`.${stageOptions?.containerHighlightClassName}`);
+  const doc = stage?.renderer?.contentWindow?.document;
+  const parentEl: HTMLElement | null | undefined = doc?.querySelector(
+    `.${props.stageOptions?.containerHighlightClassName}`,
+  );
 
   let parent: MContainer | undefined | null = page.value;
-  if (parentEl) {
-    parent = services?.editorService.getNodeById(parentEl.id, false) as MContainer;
+  const parentId = getIdFromEl()(parentEl);
+  if (parentId) {
+    parent = services?.editorService.getNodeById(parentId, false) as MContainer;
   }
 
   if (parent && stageContainer.value && stage) {
     const layout = await services?.editorService.getLayout(parent);
 
     const containerRect = stageContainer.value.getBoundingClientRect();
-    const { scrollTop, scrollLeft } = stage.mask;
+    const { scrollTop, scrollLeft } = stage.mask!;
     const { style = {} } = config.data;
 
     let top = 0;

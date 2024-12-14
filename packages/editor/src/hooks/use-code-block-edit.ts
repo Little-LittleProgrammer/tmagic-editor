@@ -1,8 +1,8 @@
 import { nextTick, ref } from 'vue';
 import { cloneDeep } from 'lodash-es';
 
+import type { CodeBlockContent } from '@tmagic/core';
 import { tMagicMessage } from '@tmagic/design';
-import type { CodeBlockContent } from '@tmagic/schema';
 
 import CodeBlockEditor from '@editor/components/CodeBlockEditor.vue';
 import type { CodeBlockService } from '@editor/services/codeBlock';
@@ -21,7 +21,7 @@ export const useCodeBlockEdit = (codeBlockService?: CodeBlockService) => {
 
     codeConfig.value = {
       name: '',
-      content: `({app, params}) => {\n  // place your code here\n}`,
+      content: `({app, params, flowState}) => {\n  // place your code here\n}`,
       params: [],
     };
 

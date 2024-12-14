@@ -15,7 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { App } from 'vue';
+import type { App } from 'vue';
+
+import type { DesignPluginOptions } from '@tmagic/design';
+import designPlugin from '@tmagic/design';
+import type { FormInstallOptions } from '@tmagic/form';
+import formPlugin from '@tmagic/form';
+import tablePlugin from '@tmagic/table';
 
 import Code from './fields/Code.vue';
 import CodeLink from './fields/CodeLink.vue';
@@ -35,16 +41,25 @@ import KeyValue from './fields/KeyValue.vue';
 import PageFragmentSelect from './fields/PageFragmentSelect.vue';
 import uiSelect from './fields/UISelect.vue';
 import CodeEditor from './layouts/CodeEditor.vue';
-import { setConfig } from './utils/config';
+import { setEditorConfig } from './utils/config';
 import Editor from './Editor.vue';
-import type { InstallOptions } from './type';
+import type { EditorInstallOptions } from './type';
 
 import './theme/index.scss';
 
+export * from '@tmagic/form';
+export { default as formPlugin } from '@tmagic/form';
+export * from '@tmagic/table';
+export { default as tablePlugin } from '@tmagic/table';
+export * from '@tmagic/stage';
+export { default as StageCore } from '@tmagic/stage';
+export * from '@tmagic/design';
+export { default as designPlugin } from '@tmagic/design';
+export * from '@tmagic/utils';
+
 export type { OnDrag } from 'gesto';
 
-export { DepTargetType } from '@tmagic/dep';
-export type { MoveableOptions } from '@tmagic/stage';
+export { DepTargetType } from '@tmagic/core';
 export * from './type';
 export * from './hooks';
 export * from './utils';
@@ -85,22 +100,29 @@ export { default as SplitView } from './components/SplitView.vue';
 export { default as Resizer } from './components/Resizer.vue';
 export { default as CodeBlockEditor } from './components/CodeBlockEditor.vue';
 export { default as FloatingBox } from './components/FloatingBox.vue';
+export { default as Tree } from './components/Tree.vue';
+export { default as TreeNode } from './components/TreeNode.vue';
 export { default as PageFragmentSelect } from './fields/PageFragmentSelect.vue';
 export { default as DisplayConds } from './fields/DisplayConds.vue';
 export { default as CondOpSelect } from './fields/CondOpSelect.vue';
 
-const defaultInstallOpt: InstallOptions = {
+const defaultInstallOpt: EditorInstallOptions = {
   // eslint-disable-next-line no-eval
   parseDSL: (dsl: string) => eval(dsl),
 };
 
 export default {
-  install: (app: App, opt?: Partial<InstallOptions>): void => {
+  install: (app: App, opt?: Partial<EditorInstallOptions | DesignPluginOptions | FormInstallOptions>): void => {
     const option = Object.assign(defaultInstallOpt, opt || {});
+
+    app.use(designPlugin, opt || {});
+    app.use(formPlugin, opt || {});
+    app.use(tablePlugin);
 
     // eslint-disable-next-line no-param-reassign
     app.config.globalProperties.$TMAGIC_EDITOR = option;
-    setConfig(option);
+    setEditorConfig(option);
+
     app.component(`${Editor.name || 'MEditor'}`, Editor);
     app.component('magic-code-editor', CodeEditor);
     app.component('m-fields-ui-select', uiSelect);

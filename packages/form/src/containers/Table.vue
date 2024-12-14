@@ -113,7 +113,7 @@
                     :lastValues="lastData[scope.$index]"
                     :is-compare="isCompare"
                     :size="size"
-                    @change="$emit('change', model[modelName])"
+                    @change="changeHandler"
                     @addDiffCount="onAddDiffCount()"
                   ></Container>
                 </template>
@@ -206,7 +206,7 @@ import {
 } from '@tmagic/design';
 import { asyncLoadJs, sleep } from '@tmagic/utils';
 
-import { ColumnConfig, FormState, SortProp, TableConfig } from '../schema';
+import type { ContainerChangeEventData, FormState, SortProp, TableColumnConfig, TableConfig } from '../schema';
 import { display as displayFunc, initValue } from '../utils/form';
 
 import Container from './Container.vue';
@@ -395,7 +395,15 @@ const newHandler = async (row?: any) => {
   }
 
   props.model[modelName.value].push(inputs);
-  emit('change', props.model[modelName.value]);
+
+  emit('change', props.model[modelName.value], {
+    changeRecords: [
+      {
+        propPath: `${props.prop}.${props.model[modelName.value].length - 1}`,
+        value: inputs,
+      },
+    ],
+  });
 };
 
 onMounted(() => {
@@ -484,7 +492,7 @@ const toggleRowSelection = (row: any, selected: boolean) => {
   tMagicTable.value?.toggleRowSelection.call(tMagicTable.value, row, selected);
 };
 
-const makeConfig = (config: ColumnConfig, row: any) => {
+const makeConfig = (config: TableColumnConfig, row: any) => {
   const newConfig = cloneDeep(config);
   if (typeof config.itemsFunction === 'function') {
     newConfig.items = config.itemsFunction(row);
@@ -500,6 +508,7 @@ const upHandler = (index: number) => {
 
   timer = setTimeout(() => {
     swapArray(index, index - 1);
+    timer = undefined;
   }, 300);
 };
 
@@ -525,6 +534,7 @@ const downHandler = (index: number) => {
 
   timer = setTimeout(() => {
     swapArray(index, index + 1);
+    timer = undefined;
   }, 300);
 };
 
@@ -641,6 +651,10 @@ const getProp = (index: number) => {
 };
 
 const onAddDiffCount = () => emit('addDiffCount');
+
+const changeHandler = (v: any, eventData: ContainerChangeEventData) => {
+  emit('change', props.model, eventData);
+};
 
 defineExpose({
   toggleRowSelection,

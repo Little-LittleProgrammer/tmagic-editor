@@ -1,8 +1,9 @@
 {
-  "version": "1.4.17",
+  "version": "1.5.0",
   "name": "@tmagic/form",
   "type": "module",
   "sideEffects": [
+    "dist/style.css",
     "src/theme/*"
   ],
   "main": "dist/tmagic-form.umd.cjs",
@@ -28,20 +29,20 @@
   ],
   "license": "Apache-2.0",
   "scripts": {
-    "build": "npm run build:type && vite build",
-    "build:type": "npm run clear:type && vue-tsc --declaration --emitDeclarationOnly --project tsconfig.build.json",
-    "clear:type": "rimraf ./types",
-    "check:type": "vue-tsc --noEmit --project tsconfig.build.json"
+    "build": "vite build"
   },
   "engines": {
     "node": ">=18"
   },
   "repository": {
+    "directory": "packages/form",
     "type": "git",
     "url": "https://github.com/Tencent/tmagic-editor.git"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
+    "@popperjs/core": "^2.11.8",
+    "dayjs": "^1.11.11",
     "lodash-es": "^4.17.21",
     "sortablejs": "^1.15.2"
   },
@@ -49,18 +50,17 @@
     "@types/lodash-es": "^4.17.4",
     "@types/node": "^18.19.0",
     "@types/sortablejs": "^1.15.8",
-    "@vitejs/plugin-vue": "^5.1.1",
-    "@vue/compiler-sfc": "^3.4.27",
+    "@vitejs/plugin-vue": "^5.1.3",
+    "@vue/compiler-sfc": "^3.5.12",
     "@vue/test-utils": "^2.4.6",
     "rimraf": "^3.0.2",
-    "sass": "^1.77.0",
-    "vite": "^5.3.5",
-    "vue-tsc": "^2.0.19"
+    "sass": "^1.78.0",
+    "vite": "^5.4.10"
   },
   "peerDependencies": {
     "@tmagic/design": "workspace:*",
     "@tmagic/utils": "workspace:*",
-    "vue": "^3.4.35",
+    "vue": ">=3.5.0",
     "typescript": "*"
   },
   "peerDependenciesMeta": {

@@ -1,5 +1,11 @@
 <template>
-  <Tree :data="list" :node-status-map="nodeStatusMap" @node-click="clickHandler">
+  <Tree
+    :data="list"
+    :node-status-map="nodeStatusMap"
+    :indent="indent"
+    :next-level-indent-increment="nextLevelIndentIncrement"
+    @node-click="clickHandler"
+  >
     <template #tree-node-label="{ data }">
       <div
         :class="{
@@ -12,6 +18,9 @@
       </div>
     </template>
     <template #tree-node-tool="{ data }">
+      <TMagicTag v-if="collecting && data.type === 'ds'" type="info" size="small" style="margin-right: 5px"
+        >依赖收集中</TMagicTag
+      >
       <TMagicTooltip v-if="data.type === 'ds'" effect="dark" :content="editable ? '编辑' : '查看'" placement="bottom">
         <Icon :icon="editable ? Edit : View" class="edit-icon" @click.stop="editHandler(`${data.key}`)"></Icon>
       </TMagicTooltip>
@@ -27,9 +36,8 @@
 import { computed, inject } from 'vue';
 import { Close, Edit, View } from '@element-plus/icons-vue';
 
-import { DepTargetType } from '@tmagic/dep';
-import { tMagicMessageBox, TMagicTooltip } from '@tmagic/design';
-import { DepData, Id, MNode } from '@tmagic/schema';
+import { DepData, DepTargetType, Id, MNode } from '@tmagic/core';
+import { tMagicMessageBox, TMagicTag, TMagicTooltip } from '@tmagic/design';
 
 import Icon from '@editor/components/Icon.vue';
 import Tree from '@editor/components/Tree.vue';
@@ -43,12 +51,19 @@ defineOptions({
   name: 'MEditorDataSourceList',
 });
 
+defineProps<{
+  indent?: number;
+  nextLevelIndentIncrement?: number;
+}>();
+
 const emit = defineEmits<{
   edit: [id: string];
   remove: [id: string];
 }>();
 
 const { depService, editorService, dataSourceService } = inject<Services>('services') || {};
+
+const collecting = computed(() => depService?.get('collecting'));
 
 const editable = computed(() => dataSourceService?.get('editable') ?? true);
 

@@ -24,8 +24,9 @@
 <script lang="ts" setup>
 import { computed, inject, nextTick, ref, watch } from 'vue';
 
+import type { MNode } from '@tmagic/core';
 import { TMagicTooltip } from '@tmagic/design';
-import type { MNode } from '@tmagic/schema';
+import { getIdFromEl } from '@tmagic/utils';
 
 import FloatingBox from '@editor/components/FloatingBox.vue';
 import Tree from '@editor/components/Tree.vue';
@@ -60,8 +61,8 @@ const unWatch = watch(
     nextTick(() => unWatch());
 
     stage.on('select', (el: HTMLElement, event: MouseEvent) => {
-      const els = stage.renderer.getElementsFromPoint(event) || [];
-      const ids = els.map((el) => el.id).filter((id) => Boolean(id));
+      const els = stage.renderer?.getElementsFromPoint(event) || [];
+      const ids = els.map((el) => getIdFromEl()(el)).filter((id) => Boolean(id)) as string[];
 
       buttonVisible.value = ids.length > 3;
 

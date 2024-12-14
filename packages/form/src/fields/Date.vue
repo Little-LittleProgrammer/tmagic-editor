@@ -13,9 +13,9 @@
 
 <script lang="ts" setup>
 import { TMagicDatePicker } from '@tmagic/design';
-import { datetimeFormatter } from '@tmagic/utils';
 
 import type { DateConfig, FieldProps } from '../schema';
+import { datetimeFormatter } from '../utils/form';
 import { useAddField } from '../utils/useAddField';
 
 defineOptions({
@@ -30,7 +30,7 @@ const emit = defineEmits<{
 
 useAddField(props.prop);
 
-props.model[props.name] = datetimeFormatter(props.model[props.name], '', 'YYYY/MM/DD');
+props.model[props.name] = datetimeFormatter(props.model[props.name], '', props.config.valueFormat || 'YYYY/MM/DD');
 
 const changeHandler = (v: string) => {
   emit('change', v);

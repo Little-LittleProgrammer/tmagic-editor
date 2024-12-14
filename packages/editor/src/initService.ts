@@ -1,22 +1,32 @@
-import { onBeforeUnmount, reactive, toRaw, watch } from 'vue';
+import { computed, onBeforeUnmount, reactive, toRaw, watch } from 'vue';
 import { cloneDeep } from 'lodash-es';
 
-import type { EventOption } from '@tmagic/core';
+import type {
+  CodeBlockContent,
+  DataSourceSchema,
+  EventOption,
+  Id,
+  MApp,
+  MNode,
+  MPage,
+  MPageFragment,
+} from '@tmagic/core';
 import {
   createCodeBlockTarget,
   createDataSourceCondTarget,
   createDataSourceMethodTarget,
   createDataSourceTarget,
   DepTargetType,
+  NODE_CONDS_KEY,
   Target,
-} from '@tmagic/dep';
-import type { CodeBlockContent, DataSourceSchema, Id, MApp, MNode, MPage, MPageFragment } from '@tmagic/schema';
-import { isPage } from '@tmagic/utils';
+} from '@tmagic/core';
+import { ChangeRecord } from '@tmagic/form';
+import { getNodes, isPage, isValueIncludeDataSource, traverseNode } from '@tmagic/utils';
 
 import PropsPanel from './layouts/PropsPanel.vue';
+import { isIncludeDataSource } from './utils/editor';
 import { EditorProps } from './editorProps';
 import { Services } from './type';
-import { traverseNode } from './utils';
 
 export declare type LooseRequired<T> = {
   [P in string & keyof T]: T[P];
@@ -192,16 +202,128 @@ export const initServiceEvents = (
     ((event: 'update:modelValue', value: MApp | null) => void),
   { editorService, codeBlockService, dataSourceService, depService }: Services,
 ) => {
-  const getApp = () => {
-    const stage = editorService.get('stage');
-    return stage?.renderer.runtime?.getApp?.();
+  const rootChangeHandler = async (value: MApp | null, preValue?: MApp | null) => {
+    if (!value) return;
+
+    value.codeBlocks = value.codeBlocks || {};
+    value.dataSources = value.dataSources || [];
+
+    codeBlockService.setCodeDsl(value.codeBlocks);
+    dataSourceService.set('dataSources', value.dataSources);
+
+    depService.removeTargets(DepTargetType.CODE_BLOCK);
+
+    Object.entries(value.codeBlocks).forEach(([id, code]) => {
+      depService.addTarget(createCodeBlockTarget(id, code));
+    });
+
+    dataSourceService.get('dataSources').forEach((ds) => {
+      initDataSourceDepTarget(ds);
+    });
+
+    if (Array.isArray(value.items)) {
+      depService.clearIdleTasks();
+      collectIdle(value.items, true);
+    } else {
+      depService.clear();
+      delete value.dataSourceDeps;
+      delete value.dataSourceCondDeps;
+    }
+
+    const nodeId = editorService.get('node')?.id || props.defaultSelected;
+    let node;
+    if (nodeId) {
+      node = editorService.getNodeById(nodeId);
+    }
+
+    if (node && node !== value) {
+      await editorService.select(node.id);
+    } else if (value.items?.length) {
+      await editorService.select(value.items[0]);
+    } else if (value.id) {
+      editorService.set('nodes', [value]);
+      editorService.set('parent', null);
+      editorService.set('page', null);
+    }
+
+    if (toRaw(value) !== toRaw(preValue)) {
+      emit('update:modelValue', value);
+    }
   };
 
-  const updateDataSourceSchema = () => {
+  const stage = computed(() => editorService.get('stage'));
+
+  watch(stage, (stage) => {
+    if (!stage) {
+      return;
+    }
+
+    stage.on('rerender', () => {
+      const node = editorService.get('node');
+
+      if (!node) return;
+
+      collectIdle([node], true).then(() => {
+        afterUpdateNodes([node]);
+      });
+    });
+  });
+
+  const getApp = () => stage.value?.renderer?.runtime?.getApp?.();
+
+  const updateDataSourceSchema = (nodes: MNode[], deep: boolean) => {
     const root = editorService.get('root');
+    const app = getApp();
+
+    if (root && app?.dsl) {
+      app.dsl.dataSourceDeps = root.dataSourceDeps;
+      app.dsl.dataSourceCondDeps = root.dataSourceCondDeps;
+      app.dsl.dataSources = root.dataSources;
+    }
 
     if (root?.dataSources) {
       getApp()?.dataSourceManager?.updateSchema(root.dataSources);
+    }
+
+    if (!root || !stage.value) return;
+
+    const allNodes: MNode[] = [];
+
+    if (deep) {
+      nodes.forEach((node) => {
+        traverseNode<MNode>(node, (node) => {
+          if (!allNodes.includes(node)) {
+            allNodes.push(node);
+          }
+        });
+      });
+    } else {
+      allNodes.push(...nodes);
+    }
+
+    const deps = Object.values(root.dataSourceDeps || {});
+    deps.forEach((dep) => {
+      Object.keys(dep).forEach((id) => {
+        const node = allNodes.find((node) => node.id === id);
+        node &&
+          stage.value?.update({
+            config: cloneDeep(node),
+            parentId: editorService.getParentById(node.id)?.id,
+            root: cloneDeep(root),
+          });
+      });
+    });
+  };
+
+  const afterUpdateNodes = (nodes: MNode[]) => {
+    const root = editorService.get('root');
+    if (!root) return;
+    for (const node of nodes) {
+      stage.value?.update({
+        config: cloneDeep(node),
+        parentId: editorService.getParentById(node.id)?.id,
+        root: cloneDeep(root),
+      });
     }
   };
 
@@ -227,64 +349,29 @@ export const initServiceEvents = (
   const targetRemoveHandler = (id: string | number) => {
     const root = editorService.get('root');
 
-    if (root?.dataSourceDeps) {
+    if (!root) return;
+
+    if (root.dataSourceDeps) {
       delete root.dataSourceDeps[id];
     }
 
-    if (root?.dataSourceCondDeps) {
+    if (root.dataSourceCondDeps) {
       delete root.dataSourceCondDeps[id];
     }
   };
 
-  const collectedHandler = (nodes: MNode[], deep: boolean) => {
+  const depCollectedHandler = () => {
     const root = editorService.get('root');
-    const stage = editorService.get('stage');
-
-    if (!root || !stage) return;
-
+    if (!root) return;
     const app = getApp();
-
-    if (!app) return;
-
-    if (app.dsl) {
+    if (app?.dsl) {
       app.dsl.dataSourceDeps = root.dataSourceDeps;
-      app.dsl.dataSourceCondDeps = root.dataSourceCondDeps;
-      app.dsl.dataSources = root.dataSources;
     }
-
-    updateDataSourceSchema();
-
-    const allNodes: MNode[] = [];
-
-    if (deep) {
-      nodes.forEach((node) => {
-        traverseNode<MNode>(node, (node) => {
-          if (!allNodes.includes(node)) {
-            allNodes.push(node);
-          }
-        });
-      });
-    } else {
-      allNodes.push(...nodes);
-    }
-
-    const deps = Object.values(root.dataSourceDeps || {});
-    deps.forEach((dep) => {
-      Object.keys(dep).forEach((id) => {
-        const node = allNodes.find((node) => node.id === id);
-        node &&
-          stage.update({
-            config: cloneDeep(node),
-            parentId: editorService.getParentById(node.id)?.id,
-            root: cloneDeep(root),
-          });
-      });
-    });
   };
 
   depService.on('add-target', targetAddHandler);
   depService.on('remove-target', targetRemoveHandler);
-  depService.on('collected', collectedHandler);
+  depService.on('collected', depCollectedHandler);
 
   const initDataSourceDepTarget = (ds: DataSourceSchema) => {
     depService.addTarget(createDataSourceTarget(ds, reactive({})));
@@ -292,77 +379,63 @@ export const initServiceEvents = (
     depService.addTarget(createDataSourceCondTarget(ds, reactive({})));
   };
 
-  const rootChangeHandler = async (value: MApp | null, preValue?: MApp | null) => {
-    if (!value) return;
+  const collectIdle = (nodes: MNode[], deep: boolean) =>
+    Promise.all(
+      nodes.map((node) => {
+        let pageId: Id | undefined;
 
-    value.codeBlocks = value.codeBlocks || {};
-    value.dataSources = value.dataSources || [];
-
-    codeBlockService.setCodeDsl(value.codeBlocks);
-    dataSourceService.set('dataSources', value.dataSources);
-
-    depService.removeTargets(DepTargetType.CODE_BLOCK);
-
-    Object.entries(value.codeBlocks).forEach(([id, code]) => {
-      depService.addTarget(createCodeBlockTarget(id, code));
-    });
-
-    dataSourceService.get('dataSources').forEach((ds) => {
-      initDataSourceDepTarget(ds);
-    });
-
-    if (Array.isArray(value.items)) {
-      value.items.forEach((page) => {
-        depService.collectIdle([page], { pageId: page.id }, true);
-      });
-    } else {
-      depService.clear();
-      delete value.dataSourceDeps;
-    }
-
-    const nodeId = editorService.get('node')?.id || props.defaultSelected;
-    let node;
-    if (nodeId) {
-      node = editorService.getNodeById(nodeId);
-    }
-
-    if (node && node !== value) {
-      await editorService.select(node.id);
-    } else if (value.items?.length) {
-      await editorService.select(value.items[0]);
-    } else if (value.id) {
-      editorService.set('nodes', [value]);
-      editorService.set('parent', null);
-      editorService.set('page', null);
-    }
-
-    if (toRaw(value) !== toRaw(preValue)) {
-      emit('update:modelValue', value);
-    }
-  };
-
-  const collectIdle = (nodes: MNode[], deep: boolean) => {
-    nodes.forEach((node) => {
-      let pageId: Id | undefined;
-
-      if (isPage(node)) {
-        pageId = node.id;
-      } else {
-        const info = editorService.getNodeInfo(node.id);
-        pageId = info.page?.id;
-      }
-      depService.collectIdle([node], { pageId }, deep);
-    });
-  };
+        if (isPage(node)) {
+          pageId = node.id;
+        } else {
+          const info = editorService.getNodeInfo(node.id);
+          pageId = info.page?.id;
+        }
+        return depService.collectIdle([node], { pageId }, deep);
+      }),
+    );
 
   // 新增节点，收集依赖
   const nodeAddHandler = (nodes: MNode[]) => {
-    collectIdle(nodes, true);
+    collectIdle(nodes, true).then(() => {
+      afterUpdateNodes(nodes);
+    });
   };
 
   // 节点更新，收集依赖
-  const nodeUpdateHandler = (nodes: MNode[]) => {
-    collectIdle(nodes, true);
+  // 仅当修改到数据源相关的才收集
+  const nodeUpdateHandler = (data: { newNode: MNode; oldNode: MNode; changeRecords?: ChangeRecord[] }[]) => {
+    const needRecollectNodes: MNode[] = [];
+    const normalNodes: MNode[] = [];
+    data.forEach(({ newNode, oldNode, changeRecords }) => {
+      if (changeRecords?.length) {
+        for (const record of changeRecords) {
+          // NODE_CONDS_KEY为显示条件key
+          if (
+            !record.propPath ||
+            new RegExp(`${NODE_CONDS_KEY}.(\\d)+.cond`).test(record.propPath) ||
+            new RegExp(`${NODE_CONDS_KEY}.(\\d)+.cond.(\\d)+.value`).test(record.propPath) ||
+            record.propPath === NODE_CONDS_KEY ||
+            isValueIncludeDataSource(record.value)
+          ) {
+            needRecollectNodes.push(newNode);
+          } else {
+            normalNodes.push(newNode);
+          }
+        }
+      } else if (isIncludeDataSource(newNode, oldNode)) {
+        needRecollectNodes.push(newNode);
+      } else {
+        normalNodes.push(newNode);
+      }
+    });
+
+    if (needRecollectNodes.length) {
+      collectIdle(needRecollectNodes, true).then(() => {
+        afterUpdateNodes(needRecollectNodes);
+      });
+    } else if (normalNodes.length) {
+      afterUpdateNodes(normalNodes);
+    }
   };
 
   // 节点删除，清除对齐的依赖收集
@@ -372,7 +445,9 @@ export const initServiceEvents = (
 
   // 由于历史记录变化是更新整个page，所以历史记录变化时，需要重新收集依赖
   const historyChangeHandler = (page: MPage | MPageFragment) => {
-    depService.collectIdle([page], { pageId: page.id }, true);
+    collectIdle([page], true).then(() => {
+      updateDataSourceSchema([page], true);
+    });
   };
 
   editorService.on('history-change', historyChangeHandler);
@@ -402,14 +477,41 @@ export const initServiceEvents = (
     getApp()?.dataSourceManager?.addDataSource(config);
   };
 
-  const dataSourceUpdateHandler = (config: DataSourceSchema) => {
-    const root = editorService.get('root');
-    removeDataSourceTarget(config.id);
-    initDataSourceDepTarget(config);
+  const dataSourceUpdateHandler = (config: DataSourceSchema, { changeRecords }: { changeRecords: ChangeRecord[] }) => {
+    let needRecollectDep = false;
+    for (const changeRecord of changeRecords) {
+      if (!changeRecord.propPath) {
+        continue;
+      }
 
-    (root?.items || []).forEach((page) => {
-      depService.collectIdle([page], { pageId: page.id }, true);
-    });
+      needRecollectDep =
+        changeRecord.propPath === 'fields' ||
+        changeRecord.propPath === 'methods' ||
+        /fields.(\d)+.name/.test(changeRecord.propPath) ||
+        /fields.(\d)+$/.test(changeRecord.propPath) ||
+        /methods.(\d)+.name/.test(changeRecord.propPath) ||
+        /methods.(\d)+$/.test(changeRecord.propPath);
+
+      if (needRecollectDep) {
+        break;
+      }
+    }
+
+    const root = editorService.get('root');
+    if (needRecollectDep) {
+      if (Array.isArray(root?.items)) {
+        depService.clearIdleTasks();
+
+        removeDataSourceTarget(config.id);
+        initDataSourceDepTarget(config);
+
+        collectIdle(root.items, true).then(() => {
+          updateDataSourceSchema(root?.items || [], true);
+        });
+      }
+    } else if (root?.dataSources) {
+      getApp()?.dataSourceManager?.updateSchema(root.dataSources);
+    }
   };
 
   const removeDataSourceTarget = (id: string) => {
@@ -419,8 +521,14 @@ export const initServiceEvents = (
   };
 
   const dataSourceRemoveHandler = (id: string) => {
+    const root = editorService.get('root');
+    const nodeIds = Object.keys(root?.dataSourceDeps?.[id] || {});
+    const nodes = getNodes(nodeIds, root?.items);
+    collectIdle(nodes, false).then(() => {
+      updateDataSourceSchema(nodes, false);
+    });
+
     removeDataSourceTarget(id);
-    getApp()?.dataSourceManager?.removeDataSource(id);
   };
 
   dataSourceService.on('add', dataSourceAddHandler);
@@ -430,7 +538,7 @@ export const initServiceEvents = (
   onBeforeUnmount(() => {
     depService.off('add-target', targetAddHandler);
     depService.off('remove-target', targetRemoveHandler);
-    depService.off('collected', collectedHandler);
+    depService.off('collected', depCollectedHandler);
 
     editorService.off('history-change', historyChangeHandler);
     editorService.off('root-change', rootChangeHandler);

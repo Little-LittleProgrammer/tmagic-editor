@@ -1,6 +1,6 @@
 {
   "name": "runtime-vue2",
-  "version": "1.4.17",
+  "version": "1.5.0",
   "type": "module",
   "private": true,
   "scripts": {
@@ -19,26 +19,22 @@
     "build:ds:event": "vite build --config build.vite.config.ts --mode ds:event"
   },
   "dependencies": {
-    "@tmagic/core": "1.4.17",
-    "@tmagic/data-source": "1.4.17",
-    "@tmagic/ui-vue2": "1.4.17",
-    "@tmagic/schema": "1.4.17",
-    "@tmagic/stage": "1.4.17",
-    "@tmagic/utils": "1.4.17",
-    "@tmagic/vue-runtime-help": "^0.0.7",
+    "@tmagic/core": "1.5.0",
+    "@tmagic/stage": "1.5.0",
+    "@tmagic/vue-runtime-help": "^0.1.4",
     "axios": "^0.25.0",
-    "terser": "^5.31.0",
-    "vue": "^2.7.4"
+    "terser": "^5.31.6",
+    "vue": "^2.7.16"
   },
   "devDependencies": {
-    "@tmagic/cli": "1.4.6",
+    "@tmagic/cli": "1.5.0",
     "@types/events": "^3.0.0",
     "axios": "^0.27.2",
     "rollup": "^4.17.2",
     "rollup-plugin-external-globals": "^0.10.0",
-    "sass": "^1.77.0",
-    "vite": "^5.3.5",
-    "@vitejs/plugin-legacy": "^5.4.0",
+    "sass": "^1.78.0",
+    "vite": "^5.4.10",
+    "@vitejs/plugin-legacy": "^5.4.2",
     "@vitejs/plugin-vue2": "^2.3.1",
     "vue-template-compiler": "^2.7.4"
   }

@@ -1,4 +1,4 @@
-import { createForm } from '@tmagic/form';
+import { createForm } from '@tmagic/editor';
 
 export default createForm([
   {
@@ -185,6 +185,25 @@ export default createForm([
         options: [
           { text: '选项1', value: 1 },
           { text: '选项2', value: 2 },
+        ],
+      },
+    ],
+  },
+  {
+    type: 'tab',
+    name: 'tab',
+    editable: true,
+    dynamic: true,
+    active: '0',
+    tabType: 'border-card',
+    items: [
+      {
+        name: 'xx',
+        items: [
+          {
+            name: 'text',
+            text: 'text',
+          },
         ],
       },
     ],

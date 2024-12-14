@@ -19,6 +19,7 @@
     </div>
     <div
       class="m-editor-sidebar-content"
+      :class="{ 'm-editor-dep-collecting': collecting }"
       v-for="(config, index) in sideBarItems"
       :key="config.$key ?? index"
       v-show="[config.text, config.$key, `${index}`].includes(activeTabName)"
@@ -148,7 +149,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, ref, watch } from 'vue';
+import { computed, inject, nextTick, ref, watch } from 'vue';
 import { Coin, EditPen, Goods, List } from '@element-plus/icons-vue';
 
 import FloatingBox from '@editor/components/FloatingBox.vue';
@@ -180,8 +181,10 @@ defineOptions({
 
 const props = withDefaults(
   defineProps<{
-    data: SideBarData;
+    data?: SideBarData;
     layerContentMenu: (MenuButton | MenuComponent)[];
+    indent?: number;
+    nextLevelIndentIncrement?: number;
     customContentMenu?: (menus: (MenuButton | MenuComponent)[], type: string) => (MenuButton | MenuComponent)[];
   }>(),
   {
@@ -195,8 +198,26 @@ const props = withDefaults(
 
 const services = inject<Services>('services');
 
+const collecting = computed(() => services?.depService.get('collecting'));
+
 const columnLeftWidth = computed(() => services?.uiService.get('columnWidth')[ColumnLayout.LEFT] || 0);
-const { height: columnLeftHeight } = useEditorContentHeight();
+const { height: editorContentHeight } = useEditorContentHeight();
+const columnLeftHeight = ref(0);
+
+const unWatchEditorContentHeight = watch(
+  editorContentHeight,
+  (height) => {
+    if (height) {
+      columnLeftHeight.value = height * 0.5;
+      nextTick().then(() => {
+        unWatchEditorContentHeight();
+      });
+    }
+  },
+  {
+    immediate: true,
+  },
+);
 
 const activeTabName = ref(props.data?.status);
 
@@ -218,6 +239,8 @@ const getItemConfig = (data: SideItem): SideComponent => {
       props: {
         layerContentMenu: props.layerContentMenu,
         customContentMenu: props.customContentMenu,
+        indent: props.indent,
+        nextLevelIndentIncrement: props.nextLevelIndentIncrement,
       },
       component: LayerPanel,
       slots: {},
@@ -228,6 +251,10 @@ const getItemConfig = (data: SideItem): SideComponent => {
       icon: EditPen,
       text: '代码编辑',
       component: CodeBlockListPanel,
+      props: {
+        indent: props.indent,
+        nextLevelIndentIncrement: props.nextLevelIndentIncrement,
+      },
       slots: {},
     },
     [SideItemKey.DATA_SOURCE]: {
@@ -236,6 +263,10 @@ const getItemConfig = (data: SideItem): SideComponent => {
       icon: Coin,
       text: '数据源',
       component: DataSourceListPanel,
+      props: {
+        indent: props.indent,
+        nextLevelIndentIncrement: props.nextLevelIndentIncrement,
+      },
       slots: {},
     },
   };

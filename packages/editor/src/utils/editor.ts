@@ -16,14 +16,26 @@
  * limitations under the License.
  */
 
+import { detailedDiff } from 'deep-object-diff';
+import { isObject } from 'lodash-es';
 import serialize from 'serialize-javascript';
 
-import type { Id, MApp, MContainer, MNode, MPage, MPageFragment } from '@tmagic/schema';
-import { NodeType } from '@tmagic/schema';
+import type { Id, MApp, MContainer, MNode, MPage, MPageFragment } from '@tmagic/core';
+import { NODE_CONDS_KEY, NodeType } from '@tmagic/core';
 import type StageCore from '@tmagic/stage';
-import { calcValueByFontsize, getNodePath, isNumber, isPage, isPageFragment, isPop } from '@tmagic/utils';
+import {
+  calcValueByFontsize,
+  getElById,
+  getNodePath,
+  isNumber,
+  isPage,
+  isPageFragment,
+  isPop,
+  isValueIncludeDataSource,
+} from '@tmagic/utils';
 
 import { Layout } from '@editor/type';
+
 export const COPY_STORAGE_KEY = '$MagicEditorCopyData';
 export const COPY_CODE_STORAGE_KEY = '$MagicEditorCopyCode';
 export const COPY_DS_STORAGE_KEY = '$MagicEditorCopyDataSource';
@@ -80,12 +92,6 @@ export const generatePageName = (pageNameList: string[], type: NodeType.PAGE | N
 export const generatePageNameByApp = (app: MApp, type: NodeType.PAGE | NodeType.PAGE_FRAGMENT): string =>
   generatePageName(getPageNameList(type === 'page' ? getPageList(app) : getPageFragmentList(app)), type);
 
-/**
- * @param {Object} node
- * @returns {boolean}
- */
-export const isFixed = (node: MNode): boolean => node.style?.position === 'fixed';
-
 export const getNodeIndex = (id: Id, parent: MContainer | MApp): number => {
   const items = parent?.items || [];
   return items.findIndex((item: MNode) => `${item.id}` === `${id}`);
@@ -108,12 +114,16 @@ const getMiddleTop = (node: MNode, parentNode: MNode, stage: StageCore | null) =
   }
 
   const { height: parentHeight } = parentNode.style;
-  // wrapperHeight 是未 calcValue的高度, 所以要将其calcValueByFontsize一下, 否则在pad or pc端计算的结果有误
-  const { scrollTop = 0, wrapperHeight } = stage.mask;
-  const wrapperHeightDeal = calcValueByFontsize(stage.renderer.getDocument()!, wrapperHeight);
-  const scrollTopDeal = calcValueByFontsize(stage.renderer.getDocument()!, scrollTop);
-  if (isPage(parentNode)) {
-    return (wrapperHeightDeal - height) / 2 + scrollTopDeal;
+
+  let wrapperHeightDeal = parentHeight;
+  if (stage.mask && stage.renderer) {
+    // wrapperHeight 是未 calcValue的高度, 所以要将其calcValueByFontsize一下, 否则在pad or pc端计算的结果有误
+    const { scrollTop = 0, wrapperHeight } = stage.mask;
+    wrapperHeightDeal = calcValueByFontsize(stage.renderer.getDocument()!, wrapperHeight);
+    const scrollTopDeal = calcValueByFontsize(stage.renderer.getDocument()!, scrollTop);
+    if (isPage(parentNode)) {
+      return (wrapperHeightDeal - height) / 2 + scrollTopDeal;
+    }
   }
 
   // 如果容器的元素高度大于当前视口高度的2倍, 添加的元素居中位置也会看不见, 所以要取最小值计算
@@ -239,8 +249,8 @@ export const getGuideLineFromCache = (key: string): number[] => {
 export const fixNodeLeft = (config: MNode, parent: MContainer, doc?: Document) => {
   if (!doc || !config.style || !isNumber(config.style.left)) return config.style?.left;
 
-  const el = doc.getElementById(`${config.id}`);
-  const parentEl = doc.getElementById(`${parent.id}`);
+  const el = getElById()(doc, `${config.id}`);
+  const parentEl = getElById()(doc, `${parent.id}`);
 
   const left = Number(config.style?.left) || 0;
   if (el && parentEl) {
@@ -262,7 +272,7 @@ export const fixNodePosition = (config: MNode, parent: MContainer, stage: StageC
   return {
     ...(config.style || {}),
     top: getMiddleTop(config, parent, stage),
-    left: fixNodeLeft(config, parent, stage?.renderer.contentWindow?.document),
+    left: fixNodeLeft(config, parent, stage?.renderer?.contentWindow?.document),
   };
 };
 
@@ -272,26 +282,6 @@ export const serializeConfig = (config: any) =>
     space: 2,
     unsafe: true,
   }).replace(/"(\w+)":\s/g, '$1: ');
-
-export interface NodeItem {
-  items?: NodeItem[];
-  [key: string]: any;
-}
-
-export const traverseNode = <T extends NodeItem = NodeItem>(
-  node: T,
-  cb: (node: T, parents: T[]) => void,
-  parents: T[] = [],
-) => {
-  cb(node, parents);
-
-  if (Array.isArray(node.items) && node.items.length) {
-    parents.push(node);
-    node.items.forEach((item) => {
-      traverseNode(item as T, cb, [...parents]);
-    });
-  }
-};
 
 export const moveItemsInContainer = (sourceIndices: number[], parent: MContainer, targetIndex: number) => {
   sourceIndices.sort((a, b) => a - b);
@@ -310,4 +300,69 @@ export const moveItemsInContainer = (sourceIndices: number[], parent: MContainer
       }
     }
   }
+};
+
+const isIncludeDataSourceByDiffAddResult = (diffResult: any) => {
+  for (const value of Object.values(diffResult)) {
+    const result = isValueIncludeDataSource(value);
+
+    if (result) {
+      return true;
+    }
+
+    if (isObject(value)) {
+      return isIncludeDataSourceByDiffAddResult(value);
+    }
+  }
+  return false;
+};
+
+const isIncludeDataSourceByDiffUpdatedResult = (diffResult: any, oldNode: any) => {
+  for (const [key, value] of Object.entries<any>(diffResult)) {
+    if (isValueIncludeDataSource(value)) {
+      return true;
+    }
+
+    if (isValueIncludeDataSource(oldNode[key])) {
+      return true;
+    }
+
+    if (isObject(value)) {
+      return isIncludeDataSourceByDiffUpdatedResult(value, oldNode[key]);
+    }
+  }
+  return false;
+};
+
+export const isIncludeDataSource = (node: MNode, oldNode: MNode) => {
+  const diffResult = detailedDiff(oldNode, node);
+
+  let isIncludeDataSource = false;
+
+  if (diffResult.updated) {
+    // 修改了显示条件
+    if ((diffResult.updated as any)[NODE_CONDS_KEY]) {
+      return true;
+    }
+
+    isIncludeDataSource = isIncludeDataSourceByDiffUpdatedResult(diffResult.updated, oldNode);
+    if (isIncludeDataSource) return true;
+  }
+
+  if (diffResult.added) {
+    isIncludeDataSource = isIncludeDataSourceByDiffAddResult(diffResult.added);
+    if (isIncludeDataSource) return true;
+  }
+
+  if (diffResult.deleted) {
+    // 删除了显示条件
+    if ((diffResult.deleted as any)[NODE_CONDS_KEY]) {
+      return true;
+    }
+
+    isIncludeDataSource = isIncludeDataSourceByDiffAddResult(diffResult.deleted);
+    if (isIncludeDataSource) return true;
+  }
+
+  return isIncludeDataSource;
 };

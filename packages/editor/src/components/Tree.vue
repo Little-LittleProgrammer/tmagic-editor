@@ -1,7 +1,14 @@
 <template>
   <div class="m-editor-tree" @dragover="handleDragOver">
     <template v-if="data?.length">
-      <TreeNode v-for="item in data" :key="item.id" :data="item" :indent="indent" :node-status-map="nodeStatusMap">
+      <TreeNode
+        v-for="item in data"
+        :key="item.id"
+        :data="item"
+        :indent="indent"
+        :next-level-indent-increment="nextLevelIndentIncrement"
+        :node-status-map="nodeStatusMap"
+      >
         <template #tree-node-content="{ data: nodeData }">
           <slot name="tree-node-content" :data="nodeData"> </slot>
         </template>
@@ -24,7 +31,7 @@
 <script setup lang="ts">
 import { provide } from 'vue';
 
-import type { Id } from '@tmagic/schema';
+import type { Id } from '@tmagic/core';
 
 import type { LayerNodeStatus, TreeNodeData } from '@editor/type';
 
@@ -57,6 +64,7 @@ withDefaults(
     data: TreeNodeData[];
     nodeStatusMap: Map<Id, LayerNodeStatus>;
     indent?: number;
+    nextLevelIndentIncrement?: number;
     emptyText?: string;
   }>(),
   {

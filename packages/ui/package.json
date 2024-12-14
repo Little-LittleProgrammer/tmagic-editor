@@ -1,40 +1,39 @@
 {
-  "version": "1.4.17",
+  "version": "1.5.0",
   "name": "@tmagic/ui",
   "type": "module",
-  "main": "src/index.ts",
+  "main": "dist/tmagic-ui.js",
   "types": "types/index.d.ts",
-  "exports": {
-    "./*": "./*"
-  },
   "files": [
     "src",
     "dist",
     "types"
   ],
-  "scripts": {
-    "build": "rimraf ./dist && npm run build:type && node scripts/build.mjs",
-    "build:type": "npm run clear:type && vue-tsc --declaration --emitDeclarationOnly --project tsconfig.build.json",
-    "clear:type": "rimraf ./types",
-    "check:type": "vue-tsc --noEmit --project tsconfig.build.json"
-  },
   "engines": {
     "node": ">=18"
   },
+  "scripts": {
+    "build": "vite build"
+  },
   "license": "Apache-2.0",
   "repository": {
+    "directory": "packages/ui",
     "type": "git",
     "url": "https://github.com/Tencent/tmagic-editor.git"
   },
   "dependencies": {
-    "qrcode": "^1.5.0"
+    "@tmagic/vue-button": "workspace:*",
+    "@tmagic/vue-container": "workspace:*",
+    "@tmagic/vue-img": "workspace:*",
+    "@tmagic/vue-iterator-container": "workspace:*",
+    "@tmagic/vue-overlay": "workspace:*",
+    "@tmagic/vue-page": "workspace:*",
+    "@tmagic/vue-page-fragment": "workspace:*",
+    "@tmagic/vue-page-fragment-container": "workspace:*",
+    "@tmagic/vue-qrcode": "workspace:*",
+    "@tmagic/vue-text": "workspace:*"
   },
   "peerDependencies": {
-    "@tmagic/core": "workspace:*",
-    "@tmagic/schema": "workspace:*",
-    "@tmagic/utils": "workspace:*",
-    "@tmagic/vue-runtime-help": ">=0.0.7",
-    "vue": ">=3.4.27",
     "typescript": "*"
   },
   "peerDependenciesMeta": {
@@ -43,10 +42,7 @@
     }
   },
   "devDependencies": {
-    "@types/qrcode": "^1.4.2",
-    "@vue/compiler-sfc": "^3.4.27",
     "rimraf": "^3.0.2",
-    "vite": "^5.3.5",
-    "vue-tsc": "^2.0.19"
+    "vite": "^5.4.10"
   }
 }

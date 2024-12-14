@@ -1,5 +1,5 @@
 {
-  "version": "1.4.17",
+  "version": "1.5.0",
   "name": "@tmagic/element-plus-adapter",
   "type": "module",
   "main": "dist/tmagic-element-plus-adapter.umd.cjs",
@@ -20,15 +20,13 @@
   ],
   "license": "Apache-2.0",
   "scripts": {
-    "build": "npm run build:type && vite build",
-    "build:type": "npm run clear:type && tsc --declaration --emitDeclarationOnly --project tsconfig.build.json",
-    "clear:type": "rimraf ./types",
-    "check:type": "tsc --noEmit --project tsconfig.build.json"
+    "build": "vite build"
   },
   "engines": {
     "node": ">=18"
   },
   "repository": {
+    "directory": "packages/element-plus-adapter",
     "type": "git",
     "url": "https://github.com/Tencent/tmagic-editor.git"
   },
@@ -42,11 +40,11 @@
   "devDependencies": {
     "@types/node": "^18.19.0",
     "rimraf": "^3.0.2",
-    "vite": "^5.3.5"
+    "vite": "^5.4.10"
   },
   "peerDependencies": {
     "@tmagic/design": "workspace:*",
-    "element-plus": ">=2.7.8",
+    "element-plus": ">=2.8.0",
     "typescript": "*"
   },
   "peerDependenciesMeta": {

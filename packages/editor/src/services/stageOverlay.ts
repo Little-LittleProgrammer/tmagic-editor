@@ -2,6 +2,7 @@ import { reactive } from 'vue';
 import type { Writable } from 'type-fest';
 
 import StageCore from '@tmagic/stage';
+import { getIdFromEl } from '@tmagic/utils';
 
 import { useStage } from '@editor/hooks/use-stage';
 import BaseService from '@editor/services//BaseService';
@@ -63,6 +64,12 @@ class StageOverlay extends BaseService {
     const subStage = this.get('stage');
     const wrapDiv = this.get('wrapDiv');
     subStage?.destroy();
+
+    for (let i = 0, l = wrapDiv.children.length; i < l; i++) {
+      const child = wrapDiv.children[i];
+      child.remove();
+    }
+
     wrapDiv.remove();
 
     this.set('stage', null);
@@ -96,7 +103,7 @@ class StageOverlay extends BaseService {
       render: async (stage: StageCore) => {
         this.copyDocumentElement();
 
-        const rootEls = stage.renderer.getDocument()?.body.children;
+        const rootEls = stage.renderer?.getDocument()?.body.children;
         if (rootEls) {
           Array.from(rootEls).forEach((element) => {
             if (['SCRIPT', 'STYLE'].includes(element.tagName)) {
@@ -134,8 +141,8 @@ class StageOverlay extends BaseService {
     const subStage = this.get('stage');
     const stage = editorService.get('stage');
 
-    const doc = subStage?.renderer.getDocument();
-    const documentElement = stage?.renderer.getDocument()?.documentElement;
+    const doc = subStage?.renderer?.getDocument();
+    const documentElement = stage?.renderer?.getDocument()?.documentElement;
 
     if (doc && documentElement) {
       doc.replaceChild(documentElement.cloneNode(true), doc.documentElement);
@@ -159,17 +166,20 @@ class StageOverlay extends BaseService {
       background-color: #fff;
     `;
 
-    Array.from(wrapDiv.children).forEach((element) => {
-      element.remove();
-    });
+    for (let i = 0, l = wrapDiv.children.length; i < l; i++) {
+      const child = wrapDiv.children[i];
+      child.remove();
+    }
+
     wrapDiv.appendChild(contentEl);
 
     setTimeout(() => {
-      subStage?.renderer.contentWindow?.magic.onPageElUpdate(wrapDiv);
+      subStage?.renderer?.contentWindow?.magic.onPageElUpdate(wrapDiv);
     });
 
     if (await stageOptions?.canSelect?.(contentEl)) {
-      subStage?.select(contentEl.id);
+      const id = getIdFromEl()(contentEl);
+      id && subStage?.select(id);
     }
   }
 

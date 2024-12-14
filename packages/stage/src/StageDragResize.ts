@@ -19,8 +19,10 @@
 /* eslint-disable no-param-reassign */
 import Moveable, { MoveableOptions } from 'moveable';
 
+import { getIdFromEl } from '@tmagic/utils';
+
 import { Mode, StageDragStatus } from './const';
-import DragResizeHelper from './DragResizeHelper';
+import type DragResizeHelper from './DragResizeHelper';
 import MoveableOptionsManager from './MoveableOptionsManager';
 import type {
   DelayedMarkContainer,
@@ -123,6 +125,7 @@ export default class StageDragResize extends MoveableOptionsManager {
    * 销毁实例
    */
   public destroy(): void {
+    this.target = null;
     this.moveable?.destroy();
     this.dragResizeHelper.destroy();
     this.dragStatus = StageDragStatus.END;
@@ -328,10 +331,12 @@ export default class StageDragResize extends MoveableOptionsManager {
         this.emit('sort', up(deltaTop, this.target));
       }
     } else {
-      this.emit('sort', {
-        src: this.target.id,
-        dist: this.target.id,
-      });
+      const id = getIdFromEl()(this.target);
+      id &&
+        this.emit('sort', {
+          src: id,
+          dist: id,
+        });
     }
   }
 

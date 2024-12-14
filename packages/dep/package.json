@@ -1,5 +1,5 @@
 {
-  "version": "1.4.17",
+  "version": "1.5.0",
   "name": "@tmagic/dep",
   "type": "module",
   "main": "dist/tmagic-dep.umd.cjs",
@@ -20,22 +20,20 @@
   ],
   "license": "Apache-2.0",
   "scripts": {
-    "build": "npm run build:type && vite build",
-    "build:type": "npm run clear:type && tsc --declaration --emitDeclarationOnly --project tsconfig.build.json",
-    "check:type": "tsc --noEmit --project tsconfig.build.json",
-    "clear:type": "rimraf ./types"
+    "build": "vite build"
   },
   "engines": {
     "node": ">=18"
   },
   "repository": {
+    "directory": "packages/dep",
     "type": "git",
     "url": "https://github.com/Tencent/tmagic-editor.git"
   },
   "devDependencies": {
     "@types/node": "^18.19.0",
     "rimraf": "^3.0.2",
-    "vite": "^5.3.5"
+    "vite": "^5.4.10"
   },
   "peerDependencies": {
     "@tmagic/schema": "workspace:*",

@@ -1,3 +1,4 @@
 export * from './hooks/use-editor-dsl';
 export * from './hooks/use-dsl';
-export { default as useApp } from './useApp';
+export * from './hooks/use-app';
+export { useComponent } from './hooks/use-component';

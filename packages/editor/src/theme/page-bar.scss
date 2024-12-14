@@ -3,19 +3,7 @@
   bottom: 0;
   left: 0;
   width: 100%;
-
-  .tmagic-design-button.m-editor-page-bar-switch-type-button {
-    margin-left: 7px;
-    position: relative;
-    top: 1px;
-    border-radius: 3px 3px 0 0;
-    border: 1px solid $--border-color;
-    border-bottom: 1px solid transparent;
-
-    &.active {
-      background-color: #f3f3f3;
-    }
-  }
+  user-select: none;
 }
 
 .m-editor-page-list-item {
@@ -69,6 +57,11 @@
     &-icon {
       position: relative;
       z-index: 1;
+
+      .icon-active {
+        font-weight: bold;
+        color: $--theme-color;
+      }
     }
 
     &-title {
@@ -77,12 +70,24 @@
       white-space: nowrap;
       overflow: hidden;
     }
+
+    &-left-icon,
+    &-right-icon {
+      position: absolute;
+      right: 0;
+      top: 0;
+      height: 100%;
+    }
+
+    &-left-icon {
+      right: 34px;
+    }
   }
 }
 
 .page-bar-popover {
-  &.el-popper.el-popover {
-    padding: 10px 0;
+  &.tmagic-design-popper {
+    padding: 4px 0;
   }
 
   .menu-item {
@@ -90,13 +95,31 @@
     transition: all 0.2s ease 0s;
     padding: 5px 14px;
 
-    .el-button--text,
-    i {
+    .tmagic-design-button {
       color: $--font-color;
     }
 
     &:hover {
       background-color: $--hover-color;
     }
+
+    &.active {
+      .tmagic-design-button {
+        color: $--theme-color;
+      }
+    }
+  }
+}
+
+.m-editor-page-bar-search-panel {
+  position: absolute;
+  bottom: $--page-bar-height;
+  border: 1px solid $--border-color;
+  padding: 6px 10px;
+  width: 100%;
+  box-sizing: border-box;
+
+  .tmagic-design-form-item {
+    margin-bottom: 0;
   }
 }

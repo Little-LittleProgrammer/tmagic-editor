@@ -1,13 +1,14 @@
-import { execSync } from 'child_process';
-import path from 'path';
-import { exit } from 'process';
+import { execSync } from 'node:child_process';
+import path from 'node:path';
+import { exit } from 'node:process';
 
-import fs from 'fs-extra';
+import fs, { existsSync } from 'fs-extra';
 import * as recast from 'recast';
 
 import type App from '../Core';
 import { EntryType, ModuleMainFilePath, NpmConfig, PackageType } from '../types';
 
+import { backupLock, backupPackageJson, restoreLock, restorePackageJson } from './backupPackageFile';
 import { error, execInfo, info } from './logger';
 
 type Ast = any;
@@ -37,7 +38,7 @@ const getRelativePath = (str: string, base: string) => (path.isAbsolute(str) ? p
 
 const npmInstall = function (dependencies: Record<string, string>, cwd: string, npmConfig: NpmConfig = {}) {
   try {
-    const { client = 'npm', registry } = npmConfig;
+    const { client = 'npm', registry, installArgs = '' } = npmConfig;
     const install = {
       npm: 'install',
       yarn: 'add',
@@ -48,7 +49,9 @@ const npmInstall = function (dependencies: Record<string, string>, cwd: string, 
       .map(([name, version]) => (version ? `${name}@${version}` : name))
       .join(' ');
 
-    const command = `${client} ${install} ${packages}${registry ? ` --registry ${registry}` : ''}`;
+    const installArgsString = `${installArgs ? ` ${installArgs}` : ''}`;
+    const registryString = `${registry ? ` --registry ${registry}` : ''}`;
+    const command = `${client} ${install}${installArgsString} ${packages}${registryString}`;
 
     execInfo(cwd);
     execInfo(command);
@@ -271,10 +274,16 @@ const getComponentPackageImports = function ({
     });
 
     if (propertyMatch) {
+      let file = getIndexPath(path.resolve(path.dirname(indexPath), propertyMatch.source.value));
+
+      if (!existsSync(file)) {
+        file = propertyMatch.source.value;
+      }
+
       result.imports.push({
         type: property.key.name ?? property.key.value,
         name: propertyMatch.specifiers[0].local.name,
-        indexPath: getIndexPath(path.resolve(path.dirname(indexPath), propertyMatch.source.value)),
+        indexPath: file,
       });
     }
   });
@@ -283,7 +292,7 @@ const getComponentPackageImports = function ({
 };
 
 const getIndexPath = function (entry: string) {
-  for (const affix of ['', '.js', '.ts']) {
+  for (const affix of ['', '.js', '.cjs', 'mjs', '.ts']) {
     const filePath = `${entry}${affix}`;
     if (isFile(filePath)) {
       return filePath;
@@ -452,9 +461,9 @@ const getDependencies = (dependencies: Record<string, string>, packagePath: stri
   dependencies[moduleName] = version;
 };
 
-const setPackages = (packages: ModuleMainFilePath, app: App, packagePath: string, key?: string) => {
+const setPackages = (packages: ModuleMainFilePath, app: App, packagePath: string, cwd: string, key?: string) => {
   const { options } = app;
-  const { temp, source, componentFileAffix, datasoucreSuperClass } = options;
+  const { temp, componentFileAffix, datasoucreSuperClass } = options;
 
   let { name: moduleName } = splitNameVersion(packagePath);
 
@@ -462,7 +471,7 @@ const setPackages = (packages: ModuleMainFilePath, app: App, packagePath: string
 
   if (isDirectory(moduleName)) {
     if (!fs.existsSync(path.join(moduleName, './package.json'))) {
-      ['index.js', 'index.ts'].forEach((index) => {
+      ['index.js', 'index.ts', 'index.cjs', 'index.mjs', 'index.json'].forEach((index) => {
         const indexFile = path.join(moduleName!, `./${index}`);
         if (fs.existsSync(indexFile)) {
           moduleName = indexFile;
@@ -474,7 +483,7 @@ const setPackages = (packages: ModuleMainFilePath, app: App, packagePath: string
 
   // 获取完整路径
   const indexPath = execSync(`node -e "console.log(require.resolve('${moduleName.replace(/\\/g, '/')}'))"`, {
-    cwd: source,
+    cwd,
   })
     .toString()
     .replace('\n', '');
@@ -486,7 +495,17 @@ const setPackages = (packages: ModuleMainFilePath, app: App, packagePath: string
   // 组件&插件&数据源包
   if (result.type === PackageType.COMPONENT_PACKAGE) {
     result.imports.forEach((i) => {
-      setPackages(packages, app, i.indexPath, i.type);
+      if (!moduleName) {
+        return;
+      }
+
+      let componentCwd = moduleName;
+
+      if (!isDirectory(moduleName)) {
+        componentCwd = path.join(cwd, `node_modules/${moduleName}`);
+      }
+
+      setPackages(packages, app, i.indexPath, componentCwd, i.type);
     });
 
     return;
@@ -543,18 +562,13 @@ export const resolveAppPackages = (app: App): ModuleMainFilePath => {
     if (!npmConfig.keepPackageJsonClean) {
       npmInstall(dependencies, source, npmConfig);
     } else {
-      const packageFile = path.join(source, 'package.json');
-      const packageBakFile = path.join(source, 'package.json.bak');
-      if (fs.existsSync(packageFile)) {
-        fs.copyFileSync(packageFile, packageBakFile);
-      }
+      backupLock(source, npmConfig.client || 'npm');
+      backupPackageJson(source);
 
       npmInstall(dependencies, source, npmConfig);
 
-      if (fs.existsSync(packageBakFile)) {
-        fs.unlinkSync(packageFile);
-        fs.renameSync(packageBakFile, packageFile);
-      }
+      restoreLock(source, npmConfig.client || 'npm');
+      restorePackageJson(source);
     }
   }
 
@@ -570,7 +584,7 @@ export const resolveAppPackages = (app: App): ModuleMainFilePath => {
     dsValueMap: {},
   };
 
-  packagePaths.forEach(([packagePath, key]) => setPackages(packagesMap, app, packagePath, key));
+  packagePaths.forEach(([packagePath, key]) => setPackages(packagesMap, app, packagePath, source, key));
 
   return packagesMap;
 };

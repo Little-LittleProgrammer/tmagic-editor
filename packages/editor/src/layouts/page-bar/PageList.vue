@@ -4,7 +4,13 @@
     id="m-editor-page-bar-list-icon"
     class="m-editor-page-bar-item m-editor-page-bar-item-icon"
   >
-    <TMagicPopover popper-class="page-bar-popover" placement="top" :width="160" trigger="hover">
+    <TMagicPopover
+      popper-class="page-bar-popover"
+      placement="top"
+      trigger="hover"
+      :width="160"
+      :destroy-on-close="true"
+    >
       <div>
         <slot name="page-list-popover" :list="list">
           <ToolButton
@@ -12,6 +18,7 @@
             :data="{
               type: 'button',
               text: item.devconfig?.tabName || item.name || item.id,
+              className: item.id === page?.id ? 'active' : '',
               handler: () => switchPage(item.id),
             }"
             :key="index"
@@ -31,8 +38,8 @@
 import { computed, inject } from 'vue';
 import { Files } from '@element-plus/icons-vue';
 
+import { Id, MPage, MPageFragment } from '@tmagic/core';
 import { TMagicIcon, TMagicPopover } from '@tmagic/design';
-import { Id, MPage, MPageFragment } from '@tmagic/schema';
 
 import ToolButton from '@editor/components/ToolButton.vue';
 import type { Services } from '@editor/type';
@@ -41,7 +48,7 @@ defineOptions({
 });
 
 defineProps<{
-  list: MPage[] | MPageFragment[];
+  list: (MPage | MPageFragment)[];
 }>();
 
 const services = inject<Services>('services');
@@ -49,7 +56,8 @@ const uiService = services?.uiService;
 const editorService = services?.editorService;
 
 const showPageListButton = computed(() => uiService?.get('showPageListButton'));
-const switchPage = (id: Id) => {
-  editorService?.select(id);
+const page = computed(() => editorService?.get('page'));
+const switchPage = async (id: Id) => {
+  await editorService?.select(id);
 };
 </script>

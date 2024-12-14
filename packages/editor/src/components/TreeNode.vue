@@ -45,7 +45,7 @@
         :parent="data"
         :parentsId="[...parentsId, data.id]"
         :node-status-map="nodeStatusMap"
-        :indent="indent + 11"
+        :indent="indent + nextLevelIndentIncrement"
       >
         <template #tree-node-content="{ data: nodeData }">
           <slot name="tree-node-content" :data="nodeData"> </slot>
@@ -65,7 +65,7 @@
 import { computed, inject } from 'vue';
 import { ArrowDown, ArrowRight } from '@element-plus/icons-vue';
 
-import type { Id } from '@tmagic/schema';
+import type { Id } from '@tmagic/core';
 
 import MIcon from '@editor/components/Icon.vue';
 import type { LayerNodeStatus, TreeNodeData } from '@editor/type';
@@ -99,9 +99,11 @@ const props = withDefaults(
     parentsId?: Id[];
     nodeStatusMap: Map<Id, LayerNodeStatus>;
     indent?: number;
+    nextLevelIndentIncrement?: number;
   }>(),
   {
     indent: 0,
+    nextLevelIndentIncrement: 11,
     parentsId: () => [],
   },
 );

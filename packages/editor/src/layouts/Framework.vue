@@ -11,8 +11,6 @@
     </slot>
 
     <SplitView
-      v-loading="stageLoading"
-      element-loading-text="Runtime 加载中..."
       v-else
       ref="splitView"
       class="m-editor-content"
@@ -38,7 +36,12 @@
         </slot>
 
         <slot name="page-bar">
-          <PageBar :disabled-page-fragment="disabledPageFragment" :page-bar-sort-options="pageBarSortOptions">
+          <PageBar
+            :disabled-page-fragment="disabledPageFragment"
+            :page-bar-sort-options="pageBarSortOptions"
+            :filter-function="pageFilterFunction"
+          >
+            <template #page-bar-add-button><slot name="page-bar-add-button"></slot></template>
             <template #page-bar-title="{ page }"><slot name="page-bar-title" :page="page"></slot></template>
             <template #page-bar-popover="{ page }"><slot name="page-bar-popover" :page="page"></slot></template>
             <template #page-list-popover="{ list }"><slot name="page-list-popover" :list="list"></slot></template>
@@ -61,11 +64,12 @@
 <script lang="ts" setup>
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+import type { MPage, MPageFragment } from '@tmagic/core';
 import { TMagicScrollbar } from '@tmagic/design';
 
 import SplitView from '@editor/components/SplitView.vue';
 import type { FrameworkSlots, GetColumnWidth, PageBarSortOptions, Services } from '@editor/type';
-import { getConfig } from '@editor/utils/config';
+import { getEditorConfig } from '@editor/utils/config';
 
 import PageBar from './page-bar/PageBar.vue';
 import AddPageBox from './AddPageBox.vue';
@@ -80,6 +84,7 @@ defineOptions({
 defineProps<{
   disabledPageFragment: boolean;
   pageBarSortOptions?: PageBarSortOptions;
+  pageFilterFunction?: (page: MPage | MPageFragment, keyword: string) => boolean;
 }>();
 
 const DEFAULT_LEFT_COLUMN_WIDTH = 310;
@@ -95,7 +100,6 @@ const root = computed(() => editorService?.get('root'));
 const page = computed(() => editorService?.get('page'));
 
 const pageLength = computed(() => editorService?.get('pageLength') || 0);
-const stageLoading = computed(() => editorService?.get('stageLoading') || false);
 const showSrc = computed(() => uiService?.get('showSrc'));
 
 const LEFT_COLUMN_WIDTH_STORAGE_KEY = '$MagicEditorLeftColumnWidthData';
@@ -156,7 +160,7 @@ onBeforeUnmount(() => {
 
 const saveCode = (value: string) => {
   try {
-    const parseDSL = getConfig('parseDSL');
+    const parseDSL = getEditorConfig('parseDSL');
     editorService?.set('root', parseDSL(value));
   } catch (e: any) {
     console.error(e);

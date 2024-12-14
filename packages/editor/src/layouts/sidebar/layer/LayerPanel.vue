@@ -10,6 +10,8 @@
       ref="tree"
       :data="nodeData"
       :node-status-map="nodeStatusMap"
+      :indent="indent"
+      :next-level-indent-increment="nextLevelIndentIncrement"
       @node-dragover="handleDragOver"
       @node-dragstart="handleDragStart"
       @node-dragleave="handleDragLeave"
@@ -47,8 +49,8 @@
 <script setup lang="ts">
 import { computed, inject, ref } from 'vue';
 
+import type { MNode } from '@tmagic/core';
 import { TMagicScrollbar } from '@tmagic/design';
-import type { MNode } from '@tmagic/schema';
 
 import SearchInput from '@editor/components/SearchInput.vue';
 import Tree from '@editor/components/Tree.vue';
@@ -70,6 +72,8 @@ defineOptions({
 
 defineProps<{
   layerContentMenu: (MenuButton | MenuComponent)[];
+  indent?: number;
+  nextLevelIndentIncrement?: number;
   customContentMenu?: (menus: (MenuButton | MenuComponent)[], type: string) => (MenuButton | MenuComponent)[];
 }>();
 

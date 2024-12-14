@@ -1,5 +1,6 @@
 <template>
-  <TMagicTableColumn type="expand">
+  <!-- @ts-nocheck -->
+  <TMagicTableColumn type="expand" :width="config.width" :fixed="config.fixed">
     <template #default="scope">
       <MTable
         v-if="config.table"

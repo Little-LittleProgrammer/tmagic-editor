@@ -19,19 +19,26 @@
 import { EventEmitter } from 'events';
 
 import { DataSource } from '@tmagic/data-source';
-import type { AppCore, EventConfig, MComponent, MContainer, MNode, MPage, MPageFragment } from '@tmagic/schema';
+import type { EventConfig, MNode } from '@tmagic/schema';
 import { HookCodeType, HookType } from '@tmagic/schema';
 
-import type App from './App';
+import type { default as TMagicApp } from './App';
 import type Page from './Page';
 import Store from './Store';
 
-interface NodeOptions {
+interface EventCache {
+  method: string;
+  fromCpt: any;
+  args: any[];
+}
+
+export interface NodeOptions {
   config: MNode;
   page?: Page;
   parent?: Node;
-  app: App;
+  app: TMagicApp;
 }
+
 class Node extends EventEmitter {
   public data!: MNode;
   public style!: {
@@ -41,8 +48,11 @@ class Node extends EventEmitter {
   public instance?: any;
   public page?: Page;
   public parent?: Node;
-  public app: App;
+  public app: TMagicApp;
   public store = new Store();
+  public eventKeys = new Map<string, symbol>();
+
+  private eventQueue: EventCache[] = [];
 
   constructor(options: NodeOptions) {
     super();
@@ -54,12 +64,61 @@ class Node extends EventEmitter {
     this.listenLifeSafe();
   }
 
-  public setData(data: MComponent | MContainer | MPage | MPageFragment) {
+  public setData(data: MNode) {
     this.data = data;
     const { events, style } = data;
     this.events = events || [];
     this.style = style || {};
-    this.emit('update-data');
+    this.emit('update-data', data);
+  }
+
+  public addEventToQueue(event: EventCache) {
+    this.eventQueue.push(event);
+  }
+
+  public async runHookCode(hook: string, params?: Record<string, any>) {
+    if (typeof this.data[hook] === 'function') {
+      // 兼容旧的数据格式
+      await this.data[hook](this);
+      return;
+    }
+
+    const hookData = this.data[hook] as {
+      /** 钩子类型 */
+      hookType: HookType;
+      hookData: {
+        /** 函数类型 */
+        codeType?: HookCodeType;
+        /** 函数id, 代码块为string, 数据源为[数据源id, 方法名称] */
+        codeId: string | [string, string];
+        /** 参数配置 */
+        params: Record<string, any>;
+      }[];
+    };
+
+    if (hookData?.hookType !== HookType.CODE) return;
+
+    for (const item of hookData.hookData) {
+      const { codeType = HookCodeType.CODE, codeId, params: itemParams = {} } = item;
+
+      let functionContent: ((...args: any[]) => any) | string | undefined;
+      const functionParams: { app: TMagicApp; params: Record<string, any>; dataSource?: DataSource } = {
+        app: this.app,
+        params: params || itemParams,
+      };
+
+      if (codeType === HookCodeType.CODE && typeof codeId === 'string' && this.app.codeDsl?.[codeId]) {
+        functionContent = this.app.codeDsl[codeId].content;
+      } else if (codeType === HookCodeType.DATA_SOURCE_METHOD && Array.isArray(codeId) && codeId.length > 1) {
+        const dataSource = this.app.dataSourceManager?.get(codeId[0]);
+        functionContent = dataSource?.methods.find((method) => method.name === codeId[1])?.content;
+        functionParams.dataSource = dataSource;
+      }
+
+      if (functionContent && typeof functionContent === 'function') {
+        await functionContent(functionParams);
+      }
+    }
   }
 
   public destroy() {
@@ -84,59 +143,14 @@ class Node extends EventEmitter {
     this.once('mounted', async (instance: any) => {
       this.instance = instance;
 
-      const eventConfigQueue = this.app.eventQueueMap[instance.config.id] || [];
-
-      for (let eventConfig = eventConfigQueue.shift(); eventConfig; eventConfig = eventConfigQueue.shift()) {
-        this.app.compActionHandler(eventConfig.eventConfig, eventConfig.fromCpt, eventConfig.args);
+      for (let eventConfig = this.eventQueue.shift(); eventConfig; eventConfig = this.eventQueue.shift()) {
+        if (typeof instance[eventConfig.method] === 'function') {
+          await instance[eventConfig.method](eventConfig.fromCpt, ...eventConfig.args);
+        }
       }
 
       await this.runHookCode('mounted');
     });
-  }
-
-  private async runHookCode(hook: string) {
-    if (typeof this.data[hook] === 'function') {
-      // 兼容旧的数据格式
-      await this.data[hook](this);
-      return;
-    }
-
-    const hookData = this.data[hook] as {
-      /** 钩子类型 */
-      hookType: HookType;
-      hookData: {
-        /** 函数类型 */
-        codeType?: HookCodeType;
-        /** 函数id, 代码块为string, 数据源为[数据源id, 方法名称] */
-        codeId: string | [string, string];
-        /** 参数配置 */
-        params: Record<string, any>;
-      }[];
-    };
-
-    if (hookData?.hookType !== HookType.CODE) return;
-
-    for (const item of hookData.hookData) {
-      const { codeType = HookCodeType.CODE, codeId, params = {} } = item;
-
-      let functionContent: ((...args: any[]) => any) | string | undefined;
-      const functionParams: { app: AppCore; params: Record<string, any>; dataSource?: DataSource } = {
-        app: this.app,
-        params,
-      };
-
-      if (codeType === HookCodeType.CODE && typeof codeId === 'string' && this.app.codeDsl?.[codeId]) {
-        functionContent = this.app.codeDsl[codeId].content;
-      } else if (codeType === HookCodeType.DATA_SOURCE_METHOD && Array.isArray(codeId) && codeId.length > 1) {
-        const dataSource = this.app.dataSourceManager?.get(codeId[0]);
-        functionContent = dataSource?.methods.find((method) => method.name === codeId[1])?.content;
-        functionParams.dataSource = dataSource;
-      }
-
-      if (functionContent && typeof functionContent === 'function') {
-        await functionContent(functionParams);
-      }
-    }
   }
 }
 

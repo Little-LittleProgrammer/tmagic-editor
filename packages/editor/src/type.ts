@@ -18,10 +18,9 @@
 
 import type { Component } from 'vue';
 import type EventEmitter from 'events';
-import Sortable, { Options, SortableEvent } from 'sortablejs';
+import Sortable, { type Options, type SortableEvent } from 'sortablejs';
 import type { PascalCasedProperties } from 'type-fest';
 
-import type { ChildConfig, ColumnConfig, FilterFunction, FormConfig, FormItem, FormState, Input } from '@tmagic/form';
 import type {
   CodeBlockContent,
   CodeBlockDSL,
@@ -33,7 +32,16 @@ import type {
   MNode,
   MPage,
   MPageFragment,
-} from '@tmagic/schema';
+} from '@tmagic/core';
+import type {
+  ChildConfig,
+  FilterFunction,
+  FormConfig,
+  FormItem,
+  FormState,
+  Input,
+  TableColumnConfig,
+} from '@tmagic/form';
 import type StageCore from '@tmagic/stage';
 import type {
   ContainerHighlightType,
@@ -69,9 +77,10 @@ export interface FrameworkSlots {
   'props-panel'(props: {}): any;
   'footer'(props: {}): any;
   'page-bar'(props: {}): any;
+  'page-bar-add-button'(props: {}): any;
   'page-bar-title'(props: { page: MPage | MPageFragment }): any;
   'page-bar-popover'(props: { page: MPage | MPageFragment }): any;
-  'page-list-popover'(props: { list: MPage[] | MPageFragment[] }): any;
+  'page-list-popover'(props: { list: (MPage | MPageFragment)[] }): any;
 }
 
 export interface WorkspaceSlots {
@@ -118,7 +127,7 @@ export type SidebarSlots = LayerPanelSlots & CodeBlockListPanelSlots & Component
 export type BeforeAdd = (config: MNode, parent: MContainer) => Promise<MNode> | MNode;
 export type GetConfig = (config: FormConfig) => Promise<FormConfig> | FormConfig;
 
-export interface InstallOptions {
+export interface EditorInstallOptions {
   parseDSL: <T = any>(dsl: string) => T;
   [key: string]: any;
 }
@@ -145,7 +154,7 @@ export interface StageOptions {
   containerHighlightDuration?: number;
   containerHighlightType?: ContainerHighlightType;
   disabledDragStart?: boolean;
-  render?: (stage: StageCore) => HTMLDivElement | Promise<HTMLDivElement>;
+  render?: (stage: StageCore) => HTMLDivElement | void | Promise<HTMLDivElement | void>;
   moveableOptions?: MoveableOptions | ((config?: CustomizeMoveableOptionsCallbackConfig) => MoveableOptions);
   canSelect?: (el: HTMLElement) => boolean | Promise<boolean>;
   isContainer?: (el: HTMLElement) => boolean | Promise<boolean>;
@@ -445,11 +454,6 @@ export interface ComponentGroup {
   items: ComponentItem[];
 }
 
-export interface UpdateData {
-  id: Id;
-  [key: string]: any;
-}
-
 export enum LayerOffset {
   TOP = 'top',
   BOTTOM = 'bottom',
@@ -486,7 +490,7 @@ export type CodeState = {
   combineIds: string[];
   /** 为业务逻辑预留的不可删除的代码块列表，由业务逻辑维护（如代码块上线后不可删除） */
   undeletableList: Id[];
-  paramsColConfig?: ColumnConfig;
+  paramsColConfig?: TableColumnConfig;
 };
 
 export type CodeRelation = {

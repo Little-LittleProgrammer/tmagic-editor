@@ -19,7 +19,7 @@
 import { EventEmitter } from 'events';
 
 import { Id } from '@tmagic/schema';
-import { getHost, injectStyle, isSameDomain } from '@tmagic/utils';
+import { getElById, getHost, injectStyle, isSameDomain } from '@tmagic/utils';
 
 import { DEFAULT_ZOOM, RenderType } from './const';
 import style from './style.css?raw';
@@ -36,7 +36,7 @@ export default class StageRender extends EventEmitter {
   private runtimeUrl?: string;
   private zoom = DEFAULT_ZOOM;
   private renderType: RenderType;
-  private customizedRender?: () => Promise<HTMLElement | null>;
+  private customizedRender?: () => Promise<HTMLElement | null | void>;
 
   constructor({ runtimeUrl, zoom, customizedRender, renderType = RenderType.IFRAME }: StageRenderConfig) {
     super();
@@ -152,7 +152,20 @@ export default class StageRender extends EventEmitter {
   }
 
   public getTargetElement(id: Id): HTMLElement | null {
-    return this.getDocument()?.getElementById(`${id}`) || null;
+    return getElById()(this.getDocument(), id);
+  }
+
+  public postTmagicRuntimeReady() {
+    this.contentWindow = this.iframe?.contentWindow as RuntimeWindow;
+
+    this.contentWindow.magic = this.getMagicApi();
+
+    this.contentWindow.postMessage(
+      {
+        tmagicRuntimeReady: true,
+      },
+      '*',
+    );
   }
 
   /**
@@ -236,17 +249,4 @@ export default class StageRender extends EventEmitter {
 
     injectStyle(this.contentWindow.document, style);
   };
-
-  private postTmagicRuntimeReady() {
-    this.contentWindow = this.iframe?.contentWindow as RuntimeWindow;
-
-    this.contentWindow.magic = this.getMagicApi();
-
-    this.contentWindow.postMessage(
-      {
-        tmagicRuntimeReady: true,
-      },
-      '*',
-    );
-  }
 }

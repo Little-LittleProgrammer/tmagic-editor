@@ -29,7 +29,7 @@
 <script setup lang="ts">
 import { computed, inject } from 'vue';
 
-import { getConfig as getDesignConfig, TMagicSelect } from '@tmagic/design';
+import { getDesignConfig, TMagicSelect } from '@tmagic/design';
 import type { FieldProps } from '@tmagic/form';
 
 import type { CondOpSelectConfig, Services } from '@editor/type';
@@ -39,7 +39,10 @@ defineOptions({
   name: 'MFieldsCondOpSelect',
 });
 
-const emit = defineEmits(['change']);
+const emit = defineEmits<{
+  change: [value: string];
+}>();
+
 const { dataSourceService } = inject<Services>('services') || {};
 
 const props = defineProps<FieldProps<CondOpSelectConfig>>();
@@ -81,7 +84,7 @@ const options = computed(() => {
   return [...arrayOptions, ...eqOptions, ...numberOptions];
 });
 
-const fieldChangeHandler = (v: string[]) => {
+const fieldChangeHandler = (v: string) => {
   emit('change', v);
 };
 </script>

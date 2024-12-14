@@ -19,7 +19,7 @@
 import { FormConfig, FormValue } from '@tmagic/form';
 
 export interface ColumnActionConfig {
-  type?: 'delete' | 'copy' | 'edit';
+  type?: 'delete' | 'copy' | 'edit' | string;
   buttonType?: string;
   display?: (row: any) => boolean;
   text?: string | ((row: any) => string);
@@ -46,14 +46,31 @@ export interface ColumnConfig<T = any> {
   type?: 'popover' | 'expand' | 'component' | string | ((value: any, row: T) => string);
   text?: string;
   prop?: string;
+  name?: string;
   showHeader?: boolean;
   table?: ColumnConfig[];
   formatter?: 'datetime' | ((item: any, row: T) => any);
   popover?: {
-    placement: string;
-    width: string;
-    trigger: string;
-    tableEmbed: boolean;
+    placement?:
+      | 'auto'
+      | 'auto-start'
+      | 'auto-end'
+      | 'left'
+      | 'right'
+      | 'top'
+      | 'bottom'
+      | 'top-start'
+      | 'top-end'
+      | 'bottom-start'
+      | 'bottom-end'
+      | 'right-start'
+      | 'right-end'
+      | 'left-start'
+      | 'left-end';
+    width?: string | number;
+    trigger?: 'hover' | 'click';
+    tableEmbed?: boolean;
+    destroyOnClose?: boolean;
   };
   sortable?: boolean | 'custom';
   action?: 'tip' | 'actionLink' | 'img' | 'link' | 'tag';
