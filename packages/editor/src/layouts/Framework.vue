@@ -20,7 +20,7 @@
       v-model:left="columnWidth.left"
       v-model:right="columnWidth.right"
       :min-left="65"
-      :min-right="20"
+      :min-right="420"
       :min-center="100"
       :width="frameworkRect?.width || 0"
       @change="columnWidthChange"
@@ -50,9 +50,7 @@
       </template>
 
       <template v-if="page" #right>
-        <TMagicScrollbar>
-          <slot name="props-panel"></slot>
-        </TMagicScrollbar>
+        <slot name="props-panel"></slot>
       </template>
     </SplitView>
 
@@ -62,10 +60,9 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 
 import type { MPage, MPageFragment } from '@tmagic/core';
-import { TMagicScrollbar } from '@tmagic/design';
 
 import SplitView from '@editor/components/SplitView.vue';
 import type { FrameworkSlots, GetColumnWidth, PageBarSortOptions, Services } from '@editor/type';
@@ -93,8 +90,8 @@ const DEFAULT_RIGHT_COLUMN_WIDTH = 480;
 const codeOptions = inject('codeOptions', {});
 const { editorService, uiService } = inject<Services>('services') || {};
 
-const content = ref<HTMLDivElement>();
-const splitView = ref<InstanceType<typeof SplitView>>();
+const content = useTemplateRef<HTMLDivElement>('content');
+const splitView = useTemplateRef<InstanceType<typeof SplitView>>('splitView');
 
 const root = computed(() => editorService?.get('root'));
 const page = computed(() => editorService?.get('page'));

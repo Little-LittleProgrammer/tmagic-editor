@@ -3,7 +3,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, markRaw, ref, watch } from 'vue';
+import { computed, inject, markRaw, ref, useTemplateRef, watch } from 'vue';
 import { Bottom, Top } from '@element-plus/icons-vue';
 
 import { NodeType } from '@tmagic/core';
@@ -11,7 +11,7 @@ import { isPage, isPageFragment } from '@tmagic/utils';
 
 import ContentMenu from '@editor/components/ContentMenu.vue';
 import CenterIcon from '@editor/icons/CenterIcon.vue';
-import { LayerOffset, Layout, MenuButton, MenuComponent, Services } from '@editor/type';
+import { CustomContentMenuFunction, LayerOffset, Layout, MenuButton, MenuComponent, Services } from '@editor/type';
 import { useCopyMenu, useDeleteMenu, useMoveToMenu, usePasteMenu } from '@editor/utils/content-menu';
 
 defineOptions({
@@ -22,18 +22,16 @@ const props = withDefaults(
   defineProps<{
     isMultiSelect?: boolean;
     stageContentMenu: (MenuButton | MenuComponent)[];
-    customContentMenu?: (menus: (MenuButton | MenuComponent)[], type: string) => (MenuButton | MenuComponent)[];
+    customContentMenu: CustomContentMenuFunction;
   }>(),
   {
     isMultiSelect: false,
-    stageContentMenu: () => [],
-    customContentMenu: (menus: (MenuButton | MenuComponent)[]) => menus,
   },
 );
 
 const services = inject<Services>('services');
 const editorService = services?.editorService;
-const menu = ref<InstanceType<typeof ContentMenu>>();
+const menu = useTemplateRef<InstanceType<typeof ContentMenu>>('menu');
 const canCenter = ref(false);
 
 const node = computed(() => editorService?.get('node'));

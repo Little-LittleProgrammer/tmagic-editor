@@ -18,6 +18,7 @@
  */
 
 import { NODE_CONDS_KEY } from '@tmagic/core';
+import { tMagicMessage } from '@tmagic/design';
 import type { FormConfig, FormState, TabPaneConfig } from '@tmagic/form';
 
 export const arrayOptions = [
@@ -41,6 +42,7 @@ export const numberOptions = [
 
 export const styleTabConfig: TabPaneConfig = {
   title: '样式',
+  display: ({ services }: any) => !(services.uiService.get('showStylePanel') ?? true),
   items: [
     {
       name: 'style',
@@ -53,6 +55,7 @@ export const styleTabConfig: TabPaneConfig = {
               type: 'data-source-field-select',
               name: 'position',
               text: '固定定位',
+              labelPosition: 'left',
               checkStrictly: false,
               dataSourceFieldType: ['string'],
               fieldConfig: {
@@ -114,6 +117,27 @@ export const styleTabConfig: TabPaneConfig = {
           items: [
             {
               type: 'data-source-field-select',
+              name: 'display',
+              text: 'display',
+              checkStrictly: false,
+              dataSourceFieldType: ['string'],
+              fieldConfig: {
+                type: 'select',
+                clearable: true,
+                allowCreate: true,
+                options: [
+                  { text: 'block', value: 'block' },
+                  { text: 'flex', value: 'flex' },
+                  { text: 'none', value: 'none' },
+                  { text: 'inline-block', value: 'inline-block' },
+                  { text: 'grid', value: 'grid' },
+                  { text: 'inline', value: 'inline' },
+                  { text: 'initial', value: 'initial' },
+                ],
+              },
+            },
+            {
+              type: 'data-source-field-select',
               name: 'width',
               text: '宽度',
               checkStrictly: false,
@@ -140,6 +164,8 @@ export const styleTabConfig: TabPaneConfig = {
               dataSourceFieldType: ['string'],
               fieldConfig: {
                 type: 'select',
+                clearable: true,
+                allowCreate: true,
                 options: [
                   { text: 'visible', value: 'visible' },
                   { text: 'hidden', value: 'hidden' },
@@ -147,6 +173,7 @@ export const styleTabConfig: TabPaneConfig = {
                   { text: 'scroll', value: 'scroll' },
                   { text: 'auto', value: 'auto' },
                   { text: 'overlay', value: 'overlay' },
+                  { text: 'initial', value: 'initial' },
                 ],
               },
             },
@@ -213,7 +240,7 @@ export const styleTabConfig: TabPaneConfig = {
               checkStrictly: false,
               dataSourceFieldType: ['string'],
               fieldConfig: {
-                type: 'text',
+                type: 'img-upload',
               },
             },
             {
@@ -344,11 +371,13 @@ export const advancedTabConfig: TabPaneConfig = {
     {
       name: 'created',
       text: 'created',
+      labelPosition: 'top',
       type: 'code-select',
     },
     {
       name: 'mounted',
       text: 'mounted',
+      labelPosition: 'top',
       type: 'code-select',
     },
   ],
@@ -389,8 +418,21 @@ export const fillConfig = (config: FormConfig = [], labelWidth = '80px'): FormCo
           // 组件id，必须要有
           {
             name: 'id',
-            type: 'display',
-            text: 'id',
+            text: 'ID',
+            type: 'text',
+            disabled: true,
+            append: {
+              type: 'button',
+              text: '复制',
+              handler: async (vm, { model }) => {
+                try {
+                  await navigator.clipboard.writeText(`${model.id}`);
+                  tMagicMessage.success('已复制');
+                } catch (err) {
+                  tMagicMessage.error('复制失败');
+                }
+              },
+            },
           },
           {
             name: 'name',

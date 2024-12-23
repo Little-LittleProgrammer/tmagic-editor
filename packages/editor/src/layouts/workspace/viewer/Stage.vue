@@ -43,7 +43,18 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, markRaw, nextTick, onBeforeUnmount, onMounted, ref, toRaw, watch, watchEffect } from 'vue';
+import {
+  computed,
+  inject,
+  markRaw,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  toRaw,
+  useTemplateRef,
+  watch,
+  watchEffect,
+} from 'vue';
 import { cloneDeep } from 'lodash-es';
 
 import type { MApp, MContainer } from '@tmagic/core';
@@ -52,7 +63,8 @@ import { calcValueByFontsize, getIdFromEl } from '@tmagic/utils';
 
 import ScrollViewer from '@editor/components/ScrollViewer.vue';
 import { useStage } from '@editor/hooks/use-stage';
-import { DragType, Layout, type MenuButton, type MenuComponent, type Services, type StageOptions } from '@editor/type';
+import type { CustomContentMenuFunction, MenuButton, MenuComponent, Services, StageOptions } from '@editor/type';
+import { DragType, Layout } from '@editor/type';
 import { getEditorConfig } from '@editor/utils/config';
 import { KeyBindingContainerKey } from '@editor/utils/keybinding-config';
 
@@ -69,7 +81,7 @@ const props = withDefaults(
     stageOptions: StageOptions;
     stageContentMenu: (MenuButton | MenuComponent)[];
     disabledStageOverlay?: boolean;
-    customContentMenu?: (menus: (MenuButton | MenuComponent)[], type: string) => (MenuButton | MenuComponent)[];
+    customContentMenu: CustomContentMenuFunction;
   }>(),
   {
     disabledStageOverlay: false,
@@ -83,9 +95,9 @@ const services = inject<Services>('services');
 
 const stageLoading = computed(() => services?.editorService.get('stageLoading') || false);
 
-const stageWrap = ref<InstanceType<typeof ScrollViewer>>();
-const stageContainer = ref<HTMLDivElement>();
-const menu = ref<InstanceType<typeof ViewerMenu>>();
+const stageWrap = useTemplateRef<InstanceType<typeof ScrollViewer>>('stageWrap');
+const stageContainer = useTemplateRef<HTMLDivElement>('stageContainer');
+const menu = useTemplateRef<InstanceType<typeof ViewerMenu>>('menu');
 
 const nodes = computed(() => services?.editorService.get('nodes') || []);
 const isMultiSelect = computed(() => nodes.value.length > 1);
