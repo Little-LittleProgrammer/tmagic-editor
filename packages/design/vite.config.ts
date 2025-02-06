@@ -24,14 +24,6 @@ import pkg from './package.json';
 export default defineConfig({
   plugins: [vue()],
 
-  optimizeDeps: {
-    esbuildOptions: {
-      define: {
-        global: 'globalThis',
-      },
-    },
-  },
-
   build: {
     cssCodeSplit: false,
     sourcemap: false,
@@ -42,12 +34,13 @@ export default defineConfig({
       entry: 'src/index.ts',
       name: 'TMagicDesign',
       fileName: 'tmagic-design',
+      cssFileName: 'style',
     },
 
     rollupOptions: {
       // 确保外部化处理那些你不想打包进库的依赖
       external(id: string) {
-        return Object.keys(pkg.dependencies).some((k) => new RegExp(`^${k}`).test(id));
+        return Object.keys(pkg.peerDependencies).some((k) => new RegExp(`^${k}`).test(id));
       },
 
       output: {

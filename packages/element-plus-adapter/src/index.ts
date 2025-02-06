@@ -27,7 +27,6 @@ import {
   ElOption,
   ElOptionGroup,
   ElPagination,
-  ElPopover,
   ElRadio,
   ElRadioButton,
   ElRadioGroup,
@@ -62,6 +61,7 @@ import type {
   ColorPickerProps,
   ColProps,
   DatePickerProps,
+  DesignPluginOptions,
   DialogProps,
   DividerProps,
   DrawerProps,
@@ -69,13 +69,12 @@ import type {
   DropdownProps,
   FormItemProps,
   FormProps,
+  IconProps,
   InputNumberProps,
   InputProps,
   OptionGroupProps,
   OptionProps,
   PaginationProps,
-  PluginOptions,
-  PopoverProps,
   RadioButtonProps,
   RadioGroupProps,
   RadioProps,
@@ -94,7 +93,7 @@ import type {
   UploadProps,
 } from '@tmagic/design';
 
-const adapter: PluginOptions = {
+const adapter: DesignPluginOptions = {
   useZIndex,
   message: ElMessage,
   messageBox: ElMessageBox,
@@ -200,8 +199,8 @@ const adapter: PluginOptions = {
     },
 
     icon: {
-      component: ElIcon,
-      props: () => ({}),
+      component: ElIcon as any,
+      props: (props: IconProps) => props,
     },
 
     input: {
@@ -227,11 +226,6 @@ const adapter: PluginOptions = {
     pagination: {
       component: ElPagination as any,
       props: (props: PaginationProps) => props,
-    },
-
-    popover: {
-      component: ElPopover as any,
-      props: (props: PopoverProps) => props,
     },
 
     radio: {

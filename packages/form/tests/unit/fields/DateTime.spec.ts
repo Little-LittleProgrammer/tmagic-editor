@@ -53,7 +53,7 @@ describe('DateTime', () => {
     expect(datetime.exists()).toBe(true);
 
     const value = await (wrapper.vm as any).submitForm();
-    expect(value.datetime).toMatch('2021-01-01 12:00:00');
+    expect(value.datetime).toMatch('2021/01/01 12:00:00');
   });
 
   test('错误类型初始化初始化', async () => {
@@ -98,7 +98,14 @@ describe('DateTime', () => {
     expect(value.datetime).toMatch('');
   });
   test('输入日期', async () => {
-    const wrapper = getWrapper();
+    const wrapper = getWrapper([
+      {
+        text: 'dateTime',
+        type: 'datetime',
+        name: 'datetime',
+        valueFormat: 'YYYY-MM-DD HH:mm:ss',
+      },
+    ]);
 
     await nextTick();
 

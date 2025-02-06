@@ -27,25 +27,7 @@ export default defineConfig({
   plugins: [vue()],
 
   resolve: {
-    alias:
-      process.env.NODE_ENV === 'production'
-        ? [{ find: /^@editor/, replacement: path.join(__dirname, './src') }]
-        : [
-            { find: /^@editor/, replacement: path.join(__dirname, './src') },
-            { find: /^@tmagic\/schema/, replacement: path.join(__dirname, '../schema/src/index.ts') },
-            { find: /^@tmagic\/utils/, replacement: path.join(__dirname, '../utils/src/index.ts') },
-            { find: /^@tmagic\/core/, replacement: path.join(__dirname, '../core/src/index.ts') },
-            { find: /^@tmagic\/form/, replacement: path.join(__dirname, '../form/src/index.ts') },
-            { find: /^@tmagic\/stage/, replacement: path.join(__dirname, '../stage/src/index.ts') },
-          ],
-  },
-
-  optimizeDeps: {
-    esbuildOptions: {
-      define: {
-        global: 'globalThis',
-      },
-    },
+    alias: [{ find: /^@editor/, replacement: path.join(__dirname, './src') }],
   },
 
   build: {
@@ -58,12 +40,16 @@ export default defineConfig({
       entry: 'src/index.ts',
       name: 'TMagicEditor',
       fileName: 'tmagic-editor',
+      cssFileName: 'style',
     },
 
     rollupOptions: {
       // 确保外部化处理那些你不想打包进库的依赖
       external(id: string) {
-        return Object.keys(pkg.dependencies).some((k) => new RegExp(`^${k}`).test(id));
+        return Object.keys({
+          ...pkg.dependencies,
+          ...pkg.peerDependencies,
+        }).some((k) => new RegExp(`^${k}`).test(id));
       },
 
       output: {

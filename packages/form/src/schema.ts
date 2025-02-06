@@ -16,9 +16,21 @@
  * limitations under the License.
  */
 
+import type { TMagicMessage, TMagicMessageBox } from '@tmagic/design';
+
 export interface ValidateError {
   message: string;
   field: string;
+}
+
+export interface ChangeRecord {
+  propPath?: string;
+  value: any;
+}
+
+export interface ContainerChangeEventData {
+  modifyKey?: string;
+  changeRecords?: ChangeRecord[];
 }
 
 export interface FieldProps<T = any> {
@@ -49,6 +61,8 @@ export type FormState = {
   setField: (prop: string, field: any) => void;
   getField: (prop: string) => any;
   deleteField: (prop: string) => any;
+  $messageBox: TMagicMessageBox;
+  $message: TMagicMessage;
   [key: string]: any;
 };
 
@@ -122,6 +136,7 @@ export interface Rule {
   type?: string;
   /** 是否必填 */
   required?: boolean;
+  trigger?: string;
   /** 自定义验证器 */
   validator?: (
     options: {
@@ -156,33 +171,34 @@ export interface Input {
 export type TypeFunction = (
   mForm: FormState | undefined,
   data: {
-    model: Record<any, any>;
+    model: FormValue;
   },
 ) => string;
 
 export type FilterFunction<T = boolean> = (
   mForm: FormState | undefined,
   data: {
-    model: Record<any, any>;
-    values: Record<any, any>;
-    parent?: Record<any, any>;
-    formValue: Record<any, any>;
+    model: FormValue;
+    values: FormValue;
+    parent?: FormValue;
+    formValue: FormValue;
     prop: string;
     config: any;
+    index?: number;
   },
 ) => T;
 
-type OnChangeHandler = (
-  mForm: FormState | undefined,
-  value: any,
-  data: {
-    model: Record<any, any>;
-    values: Record<any, any>;
-    parent?: Record<any, any>;
-    formValue: Record<any, any>;
-    config: any;
-  },
-) => any;
+export interface OnChangeHandlerData {
+  model: FormValue;
+  values?: FormValue;
+  parent?: FormValue;
+  formValue?: FormValue;
+  config: any;
+  prop: string;
+  changeRecords: ChangeRecord[];
+}
+
+export type OnChangeHandler = (mForm: FormState | undefined, value: any, data: OnChangeHandlerData) => any;
 
 type DefaultValueFunction = (mForm: FormState | undefined) => any;
 
@@ -294,6 +310,9 @@ export interface DaterangeConfig extends FormItem {
   type: 'daterange';
   defaultTime?: Date[];
   names?: string[];
+  valueFormat?: string;
+  dateFormat?: string;
+  timeFormat?: string;
 }
 
 /**
@@ -432,18 +451,18 @@ export interface ColorPickConfig extends FormItem {
   type: 'colorPicker';
 }
 
+export interface CheckboxGroupOption {
+  value: any;
+  text: string;
+  disabled?: boolean;
+}
+
 /**
  * 多选框组
  */
 export interface CheckboxGroupConfig extends FormItem {
   type: 'checkbox-group';
-  options:
-    | {
-        value: any;
-        text: string;
-        disabled?: boolean;
-      }[]
-    | Function;
+  options: CheckboxGroupOption[] | FilterFunction<CheckboxGroupOption[]>;
 }
 
 /**
@@ -535,15 +554,18 @@ export interface CascaderConfig extends FormItem, Input {
   /** 是否多选，默认 false */
   multiple?: boolean;
   /** 是否严格的遵守父子节点不互相关联，默认 false */
-  checkStrictly?: boolean;
+  checkStrictly?: boolean | FilterFunction<boolean>;
   /** 弹出内容的自定义类名 */
   popperClass?: string;
+  /** 合并成字符串时的分隔符 */
+  valueSeparator?: string | FilterFunction<string>;
   options?:
     | ((
         mForm: FormState | undefined,
         data: {
           model: Record<any, any>;
-          formValues: Record<any, any>;
+          prop: string;
+          formValue: Record<any, any>;
         },
       ) => CascaderOption[])
     | CascaderOption[];
@@ -627,7 +649,7 @@ export interface PanelConfig extends FormItem, ContainerCommonConfig {
   schematic?: string;
 }
 
-export interface ColumnConfig extends FormItem {
+export interface TableColumnConfig extends FormItem {
   name?: string;
   label: string;
   width?: string | number;
@@ -640,9 +662,9 @@ export interface ColumnConfig extends FormItem {
  */
 export interface TableConfig extends FormItem {
   type: 'table' | 'groupList' | 'group-list';
-  items: ColumnConfig[];
-  tableItems?: ColumnConfig[];
-  groupItems?: ColumnConfig[];
+  items: TableColumnConfig[];
+  tableItems?: TableColumnConfig[];
+  groupItems?: TableColumnConfig[];
   enableToggleMode?: boolean;
   /** 最大行数 */
   max?: number;

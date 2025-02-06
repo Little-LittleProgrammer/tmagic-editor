@@ -18,16 +18,21 @@
 
 import { reactive } from 'vue';
 import { cloneDeep, mergeWith } from 'lodash-es';
-import { Writable } from 'type-fest';
+import type { Writable } from 'type-fest';
 
-import { DepTargetType } from '@tmagic/dep';
+import type { Id, MComponent, MNode, TargetOptions } from '@tmagic/core';
+import { Target, Watcher } from '@tmagic/core';
 import type { FormConfig } from '@tmagic/form';
-import type { Id, MComponent, MNode } from '@tmagic/schema';
-import { getValueByKeyPath, guid, setValueByKeyPath, toLine } from '@tmagic/utils';
+import { getNodePath, getValueByKeyPath, guid, setValueByKeyPath, toLine } from '@tmagic/utils';
 
-import depService from '@editor/services/dep';
 import editorService from '@editor/services/editor';
-import type { AsyncHookPlugin, PropsState, SyncHookPlugin } from '@editor/type';
+import type {
+  AsyncHookPlugin,
+  PropsFormConfigFunction,
+  PropsFormValueFunction,
+  PropsState,
+  SyncHookPlugin,
+} from '@editor/type';
 import { fillConfig } from '@editor/utils/props';
 
 import BaseService from './BaseService';
@@ -61,7 +66,7 @@ class Props extends BaseService {
     ]);
   }
 
-  public setPropsConfigs(configs: Record<string, FormConfig>) {
+  public setPropsConfigs(configs: Record<string, FormConfig | PropsFormConfigFunction>) {
     Object.keys(configs).forEach((type: string) => {
       this.setPropsConfig(toLine(type), configs[type]);
     });
@@ -72,8 +77,13 @@ class Props extends BaseService {
     return fillConfig(config, typeof labelWidth !== 'function' ? labelWidth : '80px');
   }
 
-  public async setPropsConfig(type: string, config: FormConfig) {
-    this.state.propsConfigMap[toLine(type)] = await this.fillConfig(Array.isArray(config) ? config : [config]);
+  public async setPropsConfig(type: string, config: FormConfig | PropsFormConfigFunction) {
+    let c = config;
+    if (typeof config === 'function') {
+      c = config({ editorService });
+    }
+
+    this.state.propsConfigMap[toLine(type)] = await this.fillConfig(Array.isArray(c) ? c : [c]);
   }
 
   /**
@@ -89,7 +99,7 @@ class Props extends BaseService {
     return cloneDeep(this.state.propsConfigMap[toLine(type)] || (await this.fillConfig([])));
   }
 
-  public setPropsValues(values: Record<string, Partial<MNode>>) {
+  public setPropsValues(values: Record<string, Partial<MNode> | PropsFormValueFunction>) {
     Object.keys(values).forEach((type: string) => {
       this.setPropsValue(toLine(type), values[type]);
     });
@@ -100,8 +110,12 @@ class Props extends BaseService {
    * @param type 组件类型
    * @param value 组件初始值
    */
-  public async setPropsValue(type: string, value: Partial<MNode>) {
-    this.state.propsValueMap[toLine(type)] = value;
+  public async setPropsValue(type: string, value: Partial<MNode> | PropsFormValueFunction) {
+    let v = value;
+    if (typeof value === 'function') {
+      v = value({ editorService });
+    }
+    this.state.propsValueMap[toLine(type)] = v;
   }
 
   /**
@@ -196,16 +210,24 @@ class Props extends BaseService {
    * @param originConfigs 原组件配置
    * @param targetConfigs 待替换的组件配置
    */
-  public replaceRelateId(originConfigs: MNode[], targetConfigs: MNode[]) {
+  public replaceRelateId(originConfigs: MNode[], targetConfigs: MNode[], collectorOptions: TargetOptions) {
     const relateIdMap = this.getRelateIdMap();
+
     if (Object.keys(relateIdMap).length === 0) return;
 
-    const target = depService.getTarget(DepTargetType.RELATED_COMP_WHEN_COPY, DepTargetType.RELATED_COMP_WHEN_COPY);
-    if (!target) return;
+    const target = new Target({
+      ...collectorOptions,
+    });
+
+    const coperWatcher = new Watcher();
+
+    coperWatcher.addTarget(target);
+    coperWatcher.collect(originConfigs, {}, true, collectorOptions.type);
 
     originConfigs.forEach((config: MNode) => {
       const newId = relateIdMap[config.id];
-      const targetConfig = targetConfigs.find((targetConfig) => targetConfig.id === newId);
+      const path = getNodePath(newId, targetConfigs);
+      const targetConfig = path[path.length - 1];
 
       if (!targetConfig) return;
 
@@ -213,9 +235,13 @@ class Props extends BaseService {
         const relateOriginId = getValueByKeyPath(fullKey, config);
         const relateTargetId = relateIdMap[relateOriginId];
         if (!relateTargetId) return;
-
         setValueByKeyPath(fullKey, relateTargetId, targetConfig);
       });
+
+      // 递归items
+      if (config.items && Array.isArray(config.items)) {
+        this.replaceRelateId(config.items, targetConfigs, collectorOptions);
+      }
     });
   }
 

@@ -20,12 +20,10 @@ import { defineConfig, type LibraryFormats } from 'vite';
 
 import pkg from './package.json';
 
-const deps = Object.keys(pkg.dependencies);
-
 export default defineConfig(({ mode }) => ({
   build: {
     cssCodeSplit: false,
-    sourcemap: true,
+    sourcemap: false,
     minify: false,
     target: 'esnext',
     emptyOutDir: false,
@@ -43,7 +41,10 @@ export default defineConfig(({ mode }) => ({
         if (mode === 'umd' && id === 'lodash-es') {
           return false;
         }
-        return deps.some((k) => new RegExp(`^${k}`).test(id));
+        return Object.keys({
+          ...pkg.dependencies,
+          ...pkg.peerDependencies,
+        }).some((k) => new RegExp(`^${k}`).test(id));
       },
     },
   },

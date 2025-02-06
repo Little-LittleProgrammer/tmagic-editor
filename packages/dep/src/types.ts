@@ -1,4 +1,4 @@
-import { DepData } from '@tmagic/schema';
+import type { DepData } from '@tmagic/schema';
 
 import type Target from './Target';
 
@@ -13,8 +13,6 @@ export enum DepTargetType {
   DATA_SOURCE_METHOD = 'data-source-method',
   /** 数据源条件 */
   DATA_SOURCE_COND = 'data-source-cond',
-  /** 复制组件时关联的组件 */
-  RELATED_COMP_WHEN_COPY = 'related-comp-when-copy',
 }
 
 export type IsTarget = (key: string | number, value: any) => boolean;
@@ -30,16 +28,16 @@ export interface TargetOptions {
   isCollectByDefault?: boolean;
 }
 
-export interface CustomTargetOptions {
-  isTarget: IsTarget;
-  name?: string;
-  initialDeps?: DepData;
-  /** 是否默认收集，默认为true，当值为false时需要传入type参数给collect方法才会被收集 */
-  isCollectByDefault?: boolean;
-}
-
 export interface TargetList {
   [type: string]: {
     [targetId: string | number]: Target;
   };
 }
+
+export interface TargetNode {
+  readonly id: string | number;
+  readonly name?: string;
+  readonly [key: string | number]: any;
+}
+
+export type DepExtendedData = Record<string, any>;

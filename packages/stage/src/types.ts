@@ -17,12 +17,12 @@
  */
 
 import type { GuidesOptions } from '@scena/guides';
-import type { MoveableOptions } from 'moveable';
+import type { MoveableOptions, OnDragStart } from 'moveable';
 
 import Core from '@tmagic/core';
 import type { Id, MApp, MContainer, MNode } from '@tmagic/schema';
 
-import { GuidesType, ZIndex } from './const';
+import { AbleActionEventType, ContainerHighlightType, GuidesType, RenderType, ZIndex } from './const';
 import DragResizeHelper from './DragResizeHelper';
 import StageCore from './StageCore';
 
@@ -30,33 +30,20 @@ export type TargetElement = HTMLElement | SVGElement;
 
 export type CanSelect = (el: HTMLElement, event: MouseEvent, stop: () => boolean) => boolean | Promise<boolean>;
 export type IsContainer = (el: HTMLElement) => boolean | Promise<boolean>;
-export type CustomizeRender = (renderer: StageCore) => Promise<HTMLElement> | HTMLElement;
+export type CustomizeRender = (renderer: StageCore) => Promise<HTMLElement | void> | HTMLElement | void;
 /** 业务方自定义的moveableOptions，可以是配置，也可以是回调函数 */
 export type CustomizeMoveableOptions =
   | ((config?: CustomizeMoveableOptionsCallbackConfig) => MoveableOptions)
   | MoveableOptions
   | undefined;
-/** render提供给的接口，如果是id则转成el，如果是el则直接返回 */
-export type GetTargetElement = (idOrEl: Id | HTMLElement) => HTMLElement;
+/** render提供给的接口，id转成el */
+export type GetTargetElement = (id: Id) => HTMLElement | null;
 /** render提供的接口，通过坐标获得坐标下所有HTML元素数组 */
 export type GetElementsFromPoint = (point: Point) => HTMLElement[];
 export type GetRenderDocument = () => Document | undefined;
 export type DelayedMarkContainer = (event: MouseEvent, exclude: Element[]) => NodeJS.Timeout | undefined;
 export type MarkContainerEnd = () => HTMLElement | null;
 export type GetRootContainer = () => HTMLDivElement | undefined;
-
-/** 将组件添加到容器的方式 */
-export enum ContainerHighlightType {
-  /** 默认方式：组件在容器上方悬停一段时间后加入 */
-  DEFAULT = 'default',
-  /** 按住alt键，并在容器上方悬停一段时间后加入 */
-  ALT = 'alt',
-}
-
-export enum RenderType {
-  IFRAME = 'iframe',
-  NATIVE = 'native',
-}
 
 export type UpdateDragEl = (el: TargetElement, target: TargetElement, container: HTMLElement) => void;
 
@@ -73,7 +60,7 @@ export interface StageCoreConfig {
   moveableOptions?: CustomizeMoveableOptions;
   /** runtime 的HTML地址，可以是一个HTTP地址，如果和编辑器不同域，需要设置跨域，也可以是一个相对或绝对路径 */
   runtimeUrl?: string;
-  render?: (renderer: StageCore) => Promise<HTMLElement> | HTMLElement;
+  render?: CustomizeRender;
   autoScrollIntoView?: boolean;
   updateDragEl?: UpdateDragEl;
   disabledDragStart?: boolean;
@@ -106,7 +93,7 @@ export interface MoveableOptionsManagerConfig {
 }
 
 export interface CustomizeMoveableOptionsCallbackConfig {
-  targetEl?: HTMLElement;
+  targetEl: HTMLElement | null;
   targetElId?: string;
   targetEls?: HTMLElement[];
   targetElIds?: string[];
@@ -118,7 +105,7 @@ export interface StageRenderConfig {
   runtimeUrl?: string;
   zoom: number | undefined;
   renderType?: RenderType;
-  customizedRender?: () => Promise<HTMLElement | null>;
+  customizedRender?: () => Promise<HTMLElement | null | void>;
 }
 
 export interface StageMaskConfig {
@@ -149,24 +136,6 @@ export interface StageMultiDragResizeConfig {
 export interface DragResizeHelperConfig {
   container: HTMLElement;
   updateDragEl?: UpdateDragEl;
-}
-
-/** 选择状态 */
-export enum SelectStatus {
-  /** 单选 */
-  SELECT = 'select',
-  /** 多选 */
-  MULTI_SELECT = 'multiSelect',
-}
-
-/** 拖动状态 */
-export enum StageDragStatus {
-  /** 开始拖动 */
-  START = 'start',
-  /** 拖动中 */
-  ING = 'ing',
-  /** 拖动结束 */
-  END = 'end',
 }
 
 export type Rect = {
@@ -234,7 +203,6 @@ export interface RemoveData {
 
 export interface Runtime {
   getApp?: () => Core | undefined;
-  beforeSelect?: (el: HTMLElement) => Promise<boolean> | boolean;
   updateRootConfig?: (config: MApp) => void;
   updatePageId?: (id: Id) => void;
   select?: (id: Id) => Promise<HTMLElement> | HTMLElement;
@@ -270,4 +238,75 @@ export interface TargetShadowConfig {
 
 export interface RuleOptions {
   guidesOptions?: Partial<GuidesOptions>;
+}
+
+export interface CoreEvents {
+  mounted: [];
+  'runtime-ready': [runtime: Runtime];
+  'page-el-update': [el: HTMLElement];
+  'change-guides': [data: GuidesEventData];
+  select: [selectedEl: HTMLElement, event: MouseEvent];
+  'multi-select': [selectedElList: HTMLElement[], event: MouseEvent];
+  dblclick: [event: MouseEvent];
+  update: [data: UpdateEventData];
+  sort: [data: SortEventData];
+  'select-parent': [];
+  rerender: [];
+  remove: [data: RemoveEventData];
+  highlight: [highlightEl: HTMLElement];
+  mousemove: [event: MouseEvent];
+  mouseleave: [event: MouseEvent];
+  'drag-start': [event: OnDragStart];
+}
+
+export interface RenderEvents {
+  onload: [];
+  'page-el-update': [el: HTMLElement];
+  'runtime-ready': [runtime: Runtime];
+}
+
+export interface MaskEvents {
+  scroll: [event: WheelEvent];
+  'change-guides': [
+    data: {
+      type: GuidesType.HORIZONTAL;
+      guides: number[];
+    },
+  ];
+}
+
+export interface ActionManagerEvents {
+  dblclick: [event: MouseEvent];
+  mousemove: [event: MouseEvent];
+  mouseleave: [event: MouseEvent];
+  highlight: [el: HTMLElement];
+  update: [data: UpdateEventData];
+  sort: [data: SortEventData];
+  remove: [data: RemoveEventData];
+  select: [selectedEl: HTMLElement | null, event: MouseEvent];
+  rerender: [];
+  'select-parent': [];
+  'drag-start': [event: OnDragStart];
+  'multi-update': [data: UpdateEventData];
+  'change-to-select': [id: Id, event: MouseEvent];
+  'before-multi-select': [selectedElList: HTMLElement[]];
+  'before-select': [el: HTMLElement, event: MouseEvent];
+  'multi-select': [selectedElList: HTMLElement[], event: MouseEvent];
+  'get-elements-from-point': [els: HTMLElement[]];
+}
+
+export interface DrEvents {
+  'update-moveable': [];
+  [AbleActionEventType.REMOVE]: [];
+  [AbleActionEventType.SELECT_PARENT]: [];
+  [AbleActionEventType.RERENDER]: [];
+  'drag-start': [event: OnDragStart];
+  update: [data: UpdateEventData];
+  sort: [data: SortEventData];
+}
+
+export interface MultiDrEvents {
+  'update-moveable': [];
+  'change-to-select': [id: Id, event: MouseEvent];
+  update: [data: UpdateEventData];
 }

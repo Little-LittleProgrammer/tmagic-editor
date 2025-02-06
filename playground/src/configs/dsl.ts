@@ -16,11 +16,12 @@
  * limitations under the License.
  */
 
-// @ts-nocheck
-export default {
-  id: '75f0extui9d7yksklx27hff8xg',
+import { ActionType, type MApp, NodeType } from '@tmagic/core';
+
+const dsl: MApp = {
+  id: '1',
   name: 'test',
-  type: 'app',
+  type: NodeType.ROOT,
   codeBlocks: {
     code_5336: {
       name: 'getData',
@@ -47,10 +48,26 @@ export default {
       },
       params: [],
     },
+    code_5317: {
+      name: 'code1',
+      content: ({ flowState }) => {
+        console.log('code1: set flowState.name=lisa');
+        flowState.name = 'lisa';
+      },
+      params: [],
+    },
+    code_5318: {
+      name: 'code2',
+      content: ({ flowState }) => {
+        console.log('print flowState.name', flowState.name);
+        flowState.abort();
+      },
+      params: [],
+    },
   },
   items: [
     {
-      type: 'page',
+      type: NodeType.PAGE,
       id: 'page_299',
       name: 'index',
       title: '',
@@ -76,7 +93,7 @@ export default {
           name: 'magic:common:events:click', // 事件名
           actions: [
             {
-              actionType: 'code', // 联动动作类型
+              actionType: ActionType.CODE, // 联动动作类型
               codeId: 'code_5336', // 代码块id
               params: {
                 age: 12, // 参数
@@ -88,7 +105,7 @@ export default {
           name: 'magic:common:events:click', // 事件名
           actions: [
             {
-              actionType: 'code', // 联动动作类型
+              actionType: ActionType.CODE, // 联动动作类型
               codeId: 'code_5316', // 代码块id
               params: {},
             },
@@ -135,6 +152,7 @@ export default {
           text: 'Tmagic editor 营销活动编辑器',
           multiple: true,
           events: [],
+          displayConds: [],
         },
         {
           type: 'qrcode',
@@ -159,6 +177,7 @@ export default {
           url: 'https://github.com/Tencent/tmagic-editor',
           events: [],
           created: [],
+          displayConds: [],
         },
         {
           type: 'img',
@@ -184,6 +203,7 @@ export default {
           url: '',
           events: [],
           created: [],
+          displayConds: [],
         },
         {
           type: 'button',
@@ -220,7 +240,7 @@ export default {
               name: 'magic:common:events:click',
               actions: [
                 {
-                  actionType: 'comp',
+                  actionType: ActionType.COMP,
                   to: 'overlay_2159',
                   method: 'openOverlay',
                 },
@@ -228,6 +248,7 @@ export default {
             },
           ],
           created: [],
+          displayConds: [],
         },
         {
           type: 'overlay',
@@ -421,7 +442,7 @@ export default {
         },
       ],
       methods: [],
-      events: '',
+      events: [],
       mocks: [],
       beforeRequest: '',
       afterResponse: '',
@@ -456,18 +477,12 @@ export default {
           },
         },
       ],
-      events: '',
+      events: [],
       mocks: [],
       beforeRequest: '',
       afterResponse: '',
     },
   ],
-  dataSourceDeps: {
-    ds_b64c92b5: {
-      button_430: {
-        name: '按钮',
-        keys: ['text'],
-      },
-    },
-  },
 };
+
+export default dsl;

@@ -1,5 +1,12 @@
 <template>
-  <Tree :data="codeList" :node-status-map="nodeStatusMap" @node-click="clickHandler">
+  <Tree
+    :data="codeList"
+    :node-status-map="nodeStatusMap"
+    :indent="indent"
+    :next-level-indent-increment="nextLevelIndentIncrement"
+    @node-click="clickHandler"
+    @node-contextmenu="nodeContentMenuHandler"
+  >
     <template #tree-node-label="{ data }">
       <div
         :class="{
@@ -13,6 +20,9 @@
     </template>
 
     <template #tree-node-tool="{ data }">
+      <TMagicTag v-if="collecting && data.type === 'code'" type="info" size="small" style="margin-right: 5px"
+        >依赖收集中</TMagicTag
+      >
       <TMagicTooltip v-if="data.type === 'code'" effect="dark" :content="editable ? '编辑' : '查看'" placement="bottom">
         <Icon :icon="editable ? Edit : View" class="edit-icon" @click.stop="editCode(`${data.key}`)"></Icon>
       </TMagicTooltip>
@@ -28,9 +38,9 @@
 import { computed, inject } from 'vue';
 import { Close, Edit, View } from '@element-plus/icons-vue';
 
-import { DepTargetType } from '@tmagic/dep';
-import { tMagicMessage, tMagicMessageBox, TMagicTooltip } from '@tmagic/design';
-import type { Id, MNode } from '@tmagic/schema';
+import type { Id, MNode } from '@tmagic/core';
+import { DepTargetType } from '@tmagic/core';
+import { tMagicMessage, tMagicMessageBox, TMagicTag, TMagicTooltip } from '@tmagic/design';
 
 import Icon from '@editor/components/Icon.vue';
 import Tree from '@editor/components/Tree.vue';
@@ -45,39 +55,62 @@ defineOptions({
 });
 
 const props = defineProps<{
+  indent?: number;
+  nextLevelIndentIncrement?: number;
   customError?: (id: Id, errorType: CodeDeleteErrorType) => any;
 }>();
 
 const emit = defineEmits<{
   edit: [id: string];
   remove: [id: string];
+  'node-contextmenu': [event: MouseEvent, data: TreeNodeData];
 }>();
 
 const services = inject<Services>('services');
 const { codeBlockService, depService, editorService } = services || {};
 
+const collecting = computed(() => depService?.get('collecting'));
+
 // 代码块列表
 const codeList = computed<TreeNodeData[]>(() =>
-  Object.values(depService?.getTargets(DepTargetType.CODE_BLOCK) || {}).map((target) => {
+  Object.entries(codeBlockService?.getCodeDsl() || {}).map(([codeId, code]) => {
+    const target = depService?.getTarget(codeId, DepTargetType.CODE_BLOCK);
+
+    // 按页面分类显示
+    const pageList: TreeNodeData[] =
+      editorService?.get('root')?.items.map((page) => ({
+        name: page.devconfig?.tabName || page.name,
+        type: 'node',
+        id: `${codeId}_${page.id}`,
+        key: page.id,
+        items: [],
+      })) || [];
+
     // 组件节点
-    const compNodes: TreeNodeData[] = Object.entries(target.deps).map(([id, dep]) => ({
-      name: dep.name,
-      type: 'node',
-      id: `${target.id}_${id}`,
-      key: id,
-      items: dep.keys.map((key) => {
-        const data: TreeNodeData = { name: `${key}`, id: `${target.id}_${id}_${key}`, type: 'key' };
-        return data;
-      }),
-    }));
+    if (target) {
+      Object.entries(target.deps).forEach(([id, dep]) => {
+        const page = pageList.find((page) => page.key === dep.data?.pageId);
+        page?.items?.push({
+          name: dep.name,
+          type: 'node',
+          id: `${page.id}_${id}`,
+          key: id,
+          items: dep.keys.map((key) => {
+            const data: TreeNodeData = { name: `${key}`, id: `${target.id}_${id}_${key}`, type: 'key' };
+            return data;
+          }),
+        });
+      });
+    }
 
     const data: TreeNodeData = {
-      id: target.id,
-      key: target.id,
-      name: target.name,
+      id: codeId,
+      key: codeId,
+      name: code.name,
       type: 'code',
-      codeBlockContent: codeBlockService?.getCodeContentById(target.id),
-      items: compNodes,
+      codeBlockContent: codeBlockService?.getCodeContentById(codeId),
+      // 只有一个页面不显示页面分类
+      items: pageList.length > 1 ? pageList.filter((page) => page.items?.length) : pageList[0]?.items || [],
     };
 
     return data;
@@ -131,12 +164,21 @@ const deleteCode = async (id: string) => {
     if (typeof props.customError === 'function') {
       props.customError(id, existBinds ? CodeDeleteErrorType.BIND : CodeDeleteErrorType.UNDELETEABLE);
     } else {
-      tMagicMessage.error('代码块删除失败');
+      if (existBinds) {
+        tMagicMessage.error('代码块存在绑定关系，不可删除');
+      } else {
+        tMagicMessage.error('代码块不可删除');
+      }
     }
   }
 };
 
+const nodeContentMenuHandler = (event: MouseEvent, data: TreeNodeData) => {
+  emit('node-contextmenu', event, data);
+};
+
 defineExpose({
   filter: filterTextChangeHandler,
+  deleteCode,
 });
 </script>

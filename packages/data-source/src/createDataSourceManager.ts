@@ -17,8 +17,8 @@
  */
 import { union } from 'lodash-es';
 
-import type { AppCore } from '@tmagic/schema';
-import { getDepNodeIds, getNodes } from '@tmagic/utils';
+import type { default as TMagicApp } from '@tmagic/core';
+import { getDepNodeIds, getNodes, isPage } from '@tmagic/core';
 
 import DataSourceManager from './DataSourceManager';
 import type { ChangeEvent, DataSourceManagerData } from './types';
@@ -26,12 +26,12 @@ import { updateNode } from './utils';
 
 /**
  * 创建数据源管理器
- * @param app AppCore
- * @param useMock 是否使用mock数据
- * @param initialData 初始化数据，ssr数据可以由此传入
- * @returns DataSourceManager | undefined
+ * @param {TMagicApp} app
+ * @param {boolean} useMock 是否使用mock数据
+ * @param {DataSourceManagerData} initialData 初始化数据，ssr数据可以由此传入
+ * @returns {DataSourceManager | undefined}
  */
-export const createDataSourceManager = (app: AppCore, useMock?: boolean, initialData?: DataSourceManagerData) => {
+export const createDataSourceManager = (app: TMagicApp, useMock?: boolean, initialData?: DataSourceManagerData) => {
   const { dsl, platform } = app;
   if (!dsl?.dataSources) return;
 
@@ -59,14 +59,27 @@ export const createDataSourceManager = (app: AppCore, useMock?: boolean, initial
 
       const nodeIds = union([...Object.keys(condDep), ...Object.keys(dep)]);
 
+      const pages = app.page?.data && app.platform !== 'editor' ? [app.page.data] : dsl.items;
+
       dataSourceManager.emit(
         'update-data',
-        getNodes(nodeIds, dsl.items).map((node) => {
+        getNodes(nodeIds, pages).map((node) => {
           if (app.platform !== 'editor') {
             node.condResult = dataSourceManager.compliedConds(node);
           }
 
-          return dataSourceManager.compiledNode(node);
+          const newNode = dataSourceManager.compiledNode(node);
+
+          if (typeof app.page?.setData === 'function') {
+            if (isPage(newNode)) {
+              app.page.setData(newNode);
+            } else {
+              const n = app.page.getNode(node.id);
+              n?.setData(newNode);
+            }
+          }
+
+          return newNode;
         }),
         sourceId,
         changeEvent,

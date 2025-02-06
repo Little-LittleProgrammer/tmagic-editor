@@ -16,7 +16,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 
-import { getConfig } from './config';
+import { getDesignConfig } from './config';
 import type { SelectProps } from './types';
 
 defineOptions({
@@ -27,7 +27,7 @@ const props = defineProps<SelectProps>();
 
 const emit = defineEmits(['change', 'update:modelValue', 'visibleHandler']);
 
-const ui = getConfig('components')?.select;
+const ui = getDesignConfig('components')?.select;
 
 const uiComponent = ui?.component || 'el-select';
 
@@ -50,7 +50,7 @@ const visibleHandler = (...args: any[]) => {
 const scrollbarWrap = ref<HTMLDivElement | undefined>();
 
 const unWatch = watch(
-  () => select.value?.scrollbar?.wrap$ || select.value?.scrollbar?.wrapRef,
+  () => select.value?.scrollbar?.wrap$ || select.value?.scrollbar?.wrapRef || select.value?.scrollbarRef?.wrapRef,
   (wrap) => {
     if (!wrap) {
       return;

@@ -1,39 +1,32 @@
 <template>
-  <magic-ui-page :config="pageConfig"></magic-ui-page>
+  <component :is="pageComponent" :config="pageConfig"></component>
 </template>
 
 <script lang="ts">
-import { defineComponent, inject, nextTick, reactive, ref } from 'vue';
+import { defineComponent, inject } from 'vue';
 
-import Core from '@tmagic/core';
-import type { ChangeEvent } from '@tmagic/data-source';
-import type { MNode } from '@tmagic/schema';
-import { isPage, replaceChildNode } from '@tmagic/utils';
+import type { Page } from '@tmagic/core';
+import type TMagicApp from '@tmagic/core';
+import { addParamToUrl } from '@tmagic/core';
+import { useComponent, useDsl } from '@tmagic/vue-runtime-help';
 
 export default defineComponent({
   name: 'App',
 
   setup() {
-    const app = inject<Core | undefined>('app');
-    const pageConfig = ref(app?.page?.data || {});
+    const app = inject<TMagicApp>('app');
+    const { pageConfig } = useDsl(app);
+    const pageComponent = useComponent('page');
 
-    app?.dataSourceManager?.on('update-data', (nodes: MNode[], sourceId: string, changeEvent: ChangeEvent) => {
-      nodes.forEach((node) => {
-        if (isPage(node)) {
-          pageConfig.value = node;
-        } else {
-          replaceChildNode(reactive(node), [pageConfig.value as MNode]);
-        }
-      });
-
-      if (!app) return;
-
-      nextTick(() => {
-        app.emit('replaced-node', { nodes, sourceId, ...changeEvent });
-      });
+    app?.on('page-change', (page?: Page) => {
+      if (!page) {
+        throw new Error(`页面不存在`);
+      }
+      addParamToUrl({ page: page.data.id }, window);
     });
 
     return {
+      pageComponent,
       pageConfig,
     };
   },

@@ -18,16 +18,25 @@
 
 import { reactive, toRaw } from 'vue';
 import { cloneDeep, get, isObject, mergeWith, uniq } from 'lodash-es';
-import { Writable } from 'type-fest';
+import type { Writable } from 'type-fest';
 
-import { DepTargetType } from '@tmagic/dep';
-import type { Id, MApp, MComponent, MContainer, MNode, MPage, MPageFragment } from '@tmagic/schema';
-import { NodeType } from '@tmagic/schema';
-import { getNodePath, isNumber, isPage, isPageFragment, isPop } from '@tmagic/utils';
+import type { Id, MApp, MContainer, MNode, MPage, MPageFragment, TargetOptions } from '@tmagic/core';
+import { NodeType, Target, Watcher } from '@tmagic/core';
+import type { ChangeRecord } from '@tmagic/form';
+import { isFixed } from '@tmagic/stage';
+import {
+  calcValueByFontsize,
+  getElById,
+  getNodeInfo,
+  getNodePath,
+  isNumber,
+  isPage,
+  isPageFragment,
+  isPop,
+} from '@tmagic/utils';
 
 import BaseService from '@editor/services//BaseService';
 import propsService from '@editor/services//props';
-import depService from '@editor/services/dep';
 import historyService from '@editor/services/history';
 import storageService, { Protocol } from '@editor/services/storage';
 import type {
@@ -49,11 +58,22 @@ import {
   getNodeIndex,
   getPageFragmentList,
   getPageList,
-  isFixed,
+  moveItemsInContainer,
   setChildrenLayout,
   setLayout,
 } from '@editor/utils/editor';
 import { beforePaste, getAddParent } from '@editor/utils/operator';
+
+export interface EditorEvents {
+  'root-change': [value: StoreState['root'], preValue?: StoreState['root']];
+  select: [node: MNode | null];
+  add: [nodes: MNode[]];
+  remove: [nodes: MNode[]];
+  update: [nodes: { newNode: MNode; oldNode: MNode; changeRecords?: ChangeRecord[] }[]];
+  'move-layer': [offset: number | LayerOffset];
+  'drag-to': [data: { targetIndex: number; configs: MNode | MNode[]; targetParent: MContainer }];
+  'history-change': [data: MPage | MPageFragment];
+}
 
 const canUsePluginMethods = {
   async: [
@@ -140,7 +160,7 @@ class Editor extends BaseService {
         this.state.stageLoading = false;
       }
 
-      this.emit('root-change', value, preValue);
+      this.emit('root-change', value as StoreState['root'], preValue as StoreState['root']);
     }
   }
 
@@ -165,36 +185,7 @@ class Editor extends BaseService {
       root = toRaw(root);
     }
 
-    const info: EditorNodeInfo = {
-      node: null,
-      parent: null,
-      page: null,
-    };
-
-    if (!root) return info;
-
-    if (id === root.id) {
-      info.node = root;
-      return info;
-    }
-
-    const path = getNodePath(id, root.items);
-
-    if (!path.length) return info;
-
-    path.unshift(root);
-
-    info.node = path[path.length - 1] as MComponent;
-    info.parent = path[path.length - 2] as MContainer;
-
-    path.forEach((item) => {
-      if (isPage(item) || isPageFragment(item)) {
-        info.page = item as MPage | MPageFragment;
-        return;
-      }
-    });
-
-    return info;
+    return getNodeInfo(id, root);
   }
 
   /**
@@ -223,7 +214,7 @@ class Editor extends BaseService {
    * 只有容器拥有布局
    */
   public async getLayout(parent: MNode, node?: MNode | null): Promise<Layout> {
-    if (node && typeof node !== 'function' && isFixed(node)) return Layout.FIXED;
+    if (node && typeof node !== 'function' && isFixed(node.style || {})) return Layout.FIXED;
 
     if (parent.layout) {
       return parent.layout;
@@ -256,7 +247,7 @@ class Editor extends BaseService {
 
     if (node?.id) {
       this.get('stage')
-        ?.renderer.runtime?.getApp?.()
+        ?.renderer?.runtime?.getApp?.()
         ?.page?.emit(
           'editor:select',
           {
@@ -484,11 +475,11 @@ class Editor extends BaseService {
     if (isPage(node)) {
       this.state.pageLength -= 1;
 
-      await selectDefault(getPageList(root));
+      await selectDefault(rootItems);
     } else if (isPageFragment(node)) {
       this.state.pageFragmentLength -= 1;
 
-      await selectDefault(getPageFragmentList(root));
+      await selectDefault(rootItems);
     } else {
       await this.select(parent);
       stage?.select(parent.id);
@@ -519,7 +510,10 @@ class Editor extends BaseService {
     this.emit('remove', nodes);
   }
 
-  public async doUpdate(config: MNode) {
+  public async doUpdate(
+    config: MNode,
+    { changeRecords = [] }: { changeRecords?: ChangeRecord[] } = {},
+  ): Promise<{ newNode: MNode; oldNode: MNode; changeRecords?: ChangeRecord[] }> {
     const root = this.get('root');
     if (!root) throw new Error('root为空');
 
@@ -529,11 +523,15 @@ class Editor extends BaseService {
 
     if (!info.node) throw new Error(`获取不到id为${config.id}的节点`);
 
-    const node = cloneDeep(toRaw(info.node));
+    const node = toRaw(info.node);
 
     let newConfig = await this.toggleFixedPosition(toRaw(config), node, root);
 
-    newConfig = mergeWith(cloneDeep(node), newConfig, (objValue, srcValue) => {
+    newConfig = mergeWith(cloneDeep(node), newConfig, (objValue, srcValue, key) => {
+      if (typeof srcValue === 'undefined' && Object.hasOwn(newConfig, key)) {
+        return '';
+      }
+
       if (isObject(srcValue) && Array.isArray(objValue)) {
         // 原来的配置是数组，新的配置是对象，则直接使用新的值
         return srcValue;
@@ -547,7 +545,11 @@ class Editor extends BaseService {
 
     if (newConfig.type === NodeType.ROOT) {
       this.set('root', newConfig as MApp);
-      return newConfig;
+      return {
+        oldNode: node,
+        newNode: newConfig,
+        changeRecords,
+      };
     }
 
     const { parent } = info;
@@ -572,11 +574,7 @@ class Editor extends BaseService {
     nodes.splice(targetIndex, 1, newConfig);
     this.set('nodes', [...nodes]);
 
-    this.get('stage')?.update({
-      config: cloneDeep(newConfig),
-      parentId: parent.id,
-      root: cloneDeep(root),
-    });
+    // update后会触发依赖收集，收集完后会掉stage.update方法
 
     if (isPage(newConfig) || isPageFragment(newConfig)) {
       this.set('page', newConfig as MPage | MPageFragment);
@@ -584,7 +582,11 @@ class Editor extends BaseService {
 
     this.addModifiedNodeId(newConfig.id);
 
-    return newConfig;
+    return {
+      oldNode: node,
+      newNode: newConfig,
+      changeRecords,
+    };
   }
 
   /**
@@ -592,17 +594,20 @@ class Editor extends BaseService {
    * @param config 新的节点配置，配置中需要有id信息
    * @returns 更新后的节点配置
    */
-  public async update(config: MNode | MNode[]): Promise<MNode | MNode[]> {
+  public async update(
+    config: MNode | MNode[],
+    data: { changeRecords?: ChangeRecord[] } = {},
+  ): Promise<MNode | MNode[]> {
     const nodes = Array.isArray(config) ? config : [config];
 
-    const newNodes = await Promise.all(nodes.map((node) => this.doUpdate(node)));
+    const updateData = await Promise.all(nodes.map((node) => this.doUpdate(node, data)));
 
-    if (newNodes[0]?.type !== NodeType.ROOT) {
+    if (updateData[0].oldNode?.type !== NodeType.ROOT) {
       this.pushHistoryState();
     }
 
-    this.emit('update', newNodes);
-    return Array.isArray(config) ? newNodes : newNodes[0];
+    this.emit('update', updateData);
+    return Array.isArray(config) ? updateData.map((item) => item.newNode) : updateData[0].newNode;
   }
 
   /**
@@ -657,16 +662,20 @@ class Editor extends BaseService {
    * @param config 组件节点配置
    * @returns
    */
-  public copyWithRelated(config: MNode | MNode[]): void {
+  public copyWithRelated(config: MNode | MNode[], collectorOptions?: TargetOptions): void {
     const copyNodes: MNode[] = Array.isArray(config) ? config : [config];
-    // 关联的组件也一并复制
-    depService.clearByType(DepTargetType.RELATED_COMP_WHEN_COPY);
-    depService.collect(copyNodes, true, DepTargetType.RELATED_COMP_WHEN_COPY);
-    const customTarget = depService.getTarget(
-      DepTargetType.RELATED_COMP_WHEN_COPY,
-      DepTargetType.RELATED_COMP_WHEN_COPY,
-    );
-    if (customTarget) {
+
+    // 初始化复制组件相关的依赖收集器
+    if (collectorOptions && typeof collectorOptions.isTarget === 'function') {
+      const customTarget = new Target({
+        ...collectorOptions,
+      });
+
+      const coperWatcher = new Watcher();
+
+      coperWatcher.addTarget(customTarget);
+
+      coperWatcher.collect(copyNodes, {}, true, collectorOptions.type);
       Object.keys(customTarget.deps).forEach((nodeId: Id) => {
         const node = this.getNodeById(nodeId);
         if (!node) return;
@@ -682,6 +691,7 @@ class Editor extends BaseService {
         });
       });
     }
+
     storageService.setItem(COPY_STORAGE_KEY, copyNodes, {
       protocol: Protocol.OBJECT,
     });
@@ -692,7 +702,7 @@ class Editor extends BaseService {
    * @param position 粘贴的坐标
    * @returns 添加后的组件节点配置
    */
-  public async paste(position: PastePosition = {}): Promise<MNode | MNode[] | void> {
+  public async paste(position: PastePosition = {}, collectorOptions?: TargetOptions): Promise<MNode | MNode[] | void> {
     const config: MNode[] = storageService.getItem(COPY_STORAGE_KEY);
     if (!Array.isArray(config)) return;
 
@@ -707,13 +717,18 @@ class Editor extends BaseService {
       }
     }
     const pasteConfigs = await this.doPaste(config, position);
-    propsService.replaceRelateId(config, pasteConfigs);
+
+    if (collectorOptions && typeof collectorOptions.isTarget === 'function') {
+      propsService.replaceRelateId(config, pasteConfigs, collectorOptions);
+    }
+
     return this.add(pasteConfigs, parent);
   }
 
   public async doPaste(config: MNode[], position: PastePosition = {}): Promise<MNode[]> {
     propsService.clearRelateId();
-    const pasteConfigs = beforePaste(position, cloneDeep(config));
+    const doc = this.get('stage')?.renderer?.contentWindow?.document;
+    const pasteConfigs = beforePaste(position, cloneDeep(config), doc);
     return pasteConfigs;
   }
 
@@ -731,13 +746,13 @@ class Editor extends BaseService {
     if (!node.style) return config;
 
     const stage = this.get('stage');
-    const doc = stage?.renderer.contentWindow?.document;
+    const doc = stage?.renderer?.contentWindow?.document;
 
     if (doc) {
-      const el = doc.getElementById(`${node.id}`);
+      const el = getElById()(doc, node.id);
       const parentEl = layout === Layout.FIXED ? doc.body : el?.offsetParent;
       if (parentEl && el) {
-        node.style.left = (parentEl.clientWidth - el.clientWidth) / 2;
+        node.style.left = calcValueByFontsize(doc, (parentEl.clientWidth - el.clientWidth) / 2);
         node.style.right = '';
       }
     } else if (parent.style && isNumber(parent.style?.width) && isNumber(node.style?.width)) {
@@ -839,7 +854,7 @@ class Editor extends BaseService {
 
       const layout = await this.getLayout(target);
 
-      const newConfig = mergeWith(cloneDeep(node), config, (objValue, srcValue) => {
+      const newConfig = mergeWith(cloneDeep(node), config, (_objValue, srcValue) => {
         if (Array.isArray(srcValue)) {
           return srcValue;
         }
@@ -851,7 +866,11 @@ class Editor extends BaseService {
       await stage.select(targetId);
 
       const targetParent = this.getParentById(target.id);
-      await stage.update({ config: cloneDeep(target), parentId: targetParent?.id, root: cloneDeep(root) });
+      await stage.update({
+        config: cloneDeep(target),
+        parentId: targetParent?.id,
+        root: cloneDeep(root),
+      });
 
       await this.select(newConfig);
       stage.select(newConfig.id);
@@ -864,34 +883,57 @@ class Editor extends BaseService {
     }
   }
 
-  public async dragTo(config: MNode, targetParent: MContainer, targetIndex: number) {
+  public async dragTo(config: MNode | MNode[], targetParent: MContainer, targetIndex: number) {
     if (!targetParent || !Array.isArray(targetParent.items)) return;
 
-    const { parent, node: curNode } = this.getNodeInfo(config.id, false);
-    if (!parent || !curNode) throw new Error('找不要删除的节点');
+    const configs = Array.isArray(config) ? config : [config];
 
-    const index = getNodeIndex(curNode.id, parent);
+    const sourceIndicesInTargetParent: number[] = [];
+    const sourceOutTargetParent: MNode[] = [];
 
-    if (typeof index !== 'number' || index === -1) throw new Error('找不要删除的节点');
+    const newLayout = await this.getLayout(targetParent);
 
-    if (parent.id === targetParent.id) {
-      if (index === targetIndex) return;
+    // eslint-disable-next-line no-restricted-syntax
+    forConfigs: for (const config of configs) {
+      const { parent, node: curNode } = this.getNodeInfo(config.id, false);
+      if (!parent || !curNode) {
+        continue;
+      }
 
-      if (index < targetIndex) {
-        targetIndex -= 1;
+      const path = getNodePath(curNode.id, parent.items);
+
+      for (const node of path) {
+        if (targetParent.id === node.id) {
+          continue forConfigs;
+        }
+      }
+
+      const index = getNodeIndex(curNode.id, parent);
+
+      if (parent.id === targetParent.id) {
+        if (typeof index !== 'number' || index === -1) {
+          return;
+        }
+        sourceIndicesInTargetParent.push(index);
+      } else {
+        const layout = await this.getLayout(parent);
+
+        if (newLayout !== layout) {
+          setLayout(config, newLayout);
+        }
+
+        parent.items?.splice(index, 1);
+        sourceOutTargetParent.push(config);
+        this.addModifiedNodeId(parent.id);
       }
     }
 
-    const layout = await this.getLayout(parent);
-    const newLayout = await this.getLayout(targetParent);
+    moveItemsInContainer(sourceIndicesInTargetParent, targetParent, targetIndex);
 
-    if (newLayout !== layout) {
-      setLayout(config, newLayout);
-    }
-
-    parent.items?.splice(index, 1);
-
-    targetParent.items?.splice(targetIndex, 0, config);
+    sourceOutTargetParent.forEach((config, index) => {
+      targetParent.items?.splice(targetIndex + index, 0, config);
+      this.addModifiedNodeId(config.id);
+    });
 
     const page = this.get('page');
     const root = this.get('root');
@@ -905,12 +947,9 @@ class Editor extends BaseService {
       });
     }
 
-    this.addModifiedNodeId(config.id);
-    this.addModifiedNodeId(parent.id);
-
     this.pushHistoryState();
 
-    this.emit('drag-to', { index, targetIndex, config, parent, targetParent });
+    this.emit('drag-to', { targetIndex, configs, targetParent });
   }
 
   /**
@@ -1006,6 +1045,24 @@ class Editor extends BaseService {
     super.usePlugin(options);
   }
 
+  public on<Name extends keyof EditorEvents, Param extends EditorEvents[Name]>(
+    eventName: Name,
+    listener: (...args: Param) => void | Promise<void>,
+  ) {
+    return super.on(eventName, listener as any);
+  }
+
+  public once<Name extends keyof EditorEvents, Param extends EditorEvents[Name]>(
+    eventName: Name,
+    listener: (...args: Param) => void | Promise<void>,
+  ) {
+    return super.once(eventName, listener as any);
+  }
+
+  public emit<Name extends keyof EditorEvents, Param extends EditorEvents[Name]>(eventName: Name, ...args: Param) {
+    return super.emit(eventName, ...args);
+  }
+
   private addModifiedNodeId(id: Id) {
     if (!this.isHistoryStateChange) {
       this.get('modifiedNodeIds').set(id, id);
@@ -1043,9 +1100,9 @@ class Editor extends BaseService {
     const newConfig = cloneDeep(dist);
 
     if (!isPop(src) && newConfig.style?.position) {
-      if (isFixed(newConfig) && !isFixed(src)) {
+      if (isFixed(newConfig.style) && !isFixed(src.style || {})) {
         newConfig.style = change2Fixed(newConfig, root);
-      } else if (!isFixed(newConfig) && isFixed(src)) {
+      } else if (!isFixed(newConfig.style) && isFixed(src.style || {})) {
         newConfig.style = await Fixed2Other(newConfig, root, this.getLayout);
       }
     }

@@ -3,37 +3,31 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, markRaw, ref } from 'vue';
+import { computed, inject, markRaw, useTemplateRef } from 'vue';
 import { Files, Plus } from '@element-plus/icons-vue';
 
 import { isPage, isPageFragment } from '@tmagic/utils';
 
 import ContentMenu from '@editor/components/ContentMenu.vue';
 import FolderMinusIcon from '@editor/icons/FolderMinusIcon.vue';
-import type { ComponentGroup, MenuButton, MenuComponent, Services } from '@editor/type';
+import type { ComponentGroup, CustomContentMenuFunction, MenuButton, MenuComponent, Services } from '@editor/type';
 import { useCopyMenu, useDeleteMenu, useMoveToMenu, usePasteMenu } from '@editor/utils/content-menu';
 
 defineOptions({
   name: 'MEditorLayerMenu',
 });
 
-const props = withDefaults(
-  defineProps<{
-    layerContentMenu: (MenuButton | MenuComponent)[];
-    customContentMenu?: (menus: (MenuButton | MenuComponent)[], type: string) => (MenuButton | MenuComponent)[];
-  }>(),
-  {
-    layerContentMenu: () => [],
-    customContentMenu: (menus: (MenuButton | MenuComponent)[]) => menus,
-  },
-);
+const props = defineProps<{
+  layerContentMenu: (MenuButton | MenuComponent)[];
+  customContentMenu: CustomContentMenuFunction;
+}>();
 
 const emit = defineEmits<{
   'collapse-all': [];
 }>();
 
 const services = inject<Services>('services');
-const menu = ref<InstanceType<typeof ContentMenu>>();
+const menu = useTemplateRef<InstanceType<typeof ContentMenu>>('menu');
 const node = computed(() => services?.editorService.get('node'));
 const nodes = computed(() => services?.editorService.get('nodes'));
 const componentList = computed(() => services?.componentListService.getList() || []);

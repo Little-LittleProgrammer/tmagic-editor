@@ -1,10 +1,7 @@
 {
-  "version": "1.4.0-beta.1",
+  "version": "1.5.2",
   "name": "@tmagic/dep",
   "type": "module",
-  "sideEffects": [
-    "dist/*"
-  ],
   "main": "dist/tmagic-dep.umd.cjs",
   "module": "dist/tmagic-dep.js",
   "types": "types/index.d.ts",
@@ -16,27 +13,36 @@
     },
     "./*": "./*"
   },
+  "files": [
+    "dist",
+    "types",
+    "src"
+  ],
   "license": "Apache-2.0",
   "scripts": {
-    "build": "npm run build:type && vite build",
-    "build:type": "npm run clear:type && tsc --declaration --emitDeclarationOnly --project tsconfig.build.json",
-    "clear:type": "rimraf ./types"
+    "build": "vite build"
   },
   "engines": {
     "node": ">=18"
   },
   "repository": {
+    "directory": "packages/dep",
     "type": "git",
     "url": "https://github.com/Tencent/tmagic-editor.git"
-  },
-  "dependencies": {
-    "@tmagic/schema": "1.4.0-beta.1",
-    "@tmagic/utils": "1.4.0-beta.1"
   },
   "devDependencies": {
     "@types/node": "^18.19.0",
     "rimraf": "^3.0.2",
-    "typescript": "^5.4.2",
-    "vite": "^5.1.6"
+    "vite": "^6.0.3"
+  },
+  "peerDependencies": {
+    "@tmagic/schema": "workspace:*",
+    "@tmagic/utils": "workspace:*",
+    "typescript": "*"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
   }
 }

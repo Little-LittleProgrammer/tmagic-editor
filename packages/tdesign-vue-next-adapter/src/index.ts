@@ -37,7 +37,6 @@ import {
   Tag as TTag,
   TimePicker as TTimePicker,
   Tooltip as TTooltip,
-  TreeNodeModel,
   Upload as TUpload,
 } from 'tdesign-vue-next';
 
@@ -59,12 +58,12 @@ import type {
   DropdownProps,
   FormItemProps,
   FormProps,
+  IconProps,
   InputNumberProps,
   InputProps,
   OptionGroupProps,
   OptionProps,
   PaginationProps,
-  PopoverProps,
   RadioButtonProps,
   RadioGroupProps,
   RadioProps,
@@ -79,17 +78,14 @@ import type {
   TagProps,
   TimePickerProps,
   TooltipProps,
-  TreeProps,
   UploadProps,
 } from '@tmagic/design';
 
 import DatePicker from './DatePicker.vue';
 import Icon from './Icon.vue';
 import Input from './Input.vue';
-import Popover from './Popover.vue';
 import Scrollbar from './Scrollbar.vue';
 import TableColumn from './TableColumn.vue';
-import Tree from './Tree.vue';
 
 const adapter: any = {
   message: MessagePlugin,
@@ -125,6 +121,7 @@ const adapter: any = {
         size: props.size === 'default' ? 'medium' : props.size,
         icon: () => (props.icon ? h(props.icon) : null),
         variant: props.link || props.text ? 'text' : 'base',
+        shape: props.circle ? 'circle' : 'rectangle',
       }),
     },
 
@@ -303,7 +300,7 @@ const adapter: any = {
 
     icon: {
       component: Icon,
-      props: () => ({}),
+      props: (props: IconProps) => props,
     },
 
     input: {
@@ -347,11 +344,6 @@ const adapter: any = {
         pageSize: props.pagesize,
         total: props.total,
       }),
-    },
-
-    popover: {
-      component: Popover,
-      props: (props: PopoverProps) => props,
     },
 
     radio: {
@@ -483,32 +475,6 @@ const adapter: any = {
         placement: props.placement,
         content: props.content,
       }),
-    },
-
-    tree: {
-      component: Tree,
-      props: (props: TreeProps) => ({
-        ...props,
-        data: props.data,
-        draggable: props.draggable,
-        activable: props.highlightCurrent,
-        activeMultiple: props.highlightCurrent,
-        defaultActived: props.defaultCheckedKeys,
-        checkable: props.showCheckbox,
-        empty: props.emptyText,
-        expandAll: props.defaultExpandAll,
-        checkStrictly: props.checkStrictly,
-        load: props.load,
-        keys: props.props,
-      }),
-      listeners: {
-        click(context: { node: TreeNodeModel<any>; e: MouseEvent }) {
-          return {
-            node: context.node,
-            data: context.node.data,
-          };
-        },
-      },
     },
 
     upload: {

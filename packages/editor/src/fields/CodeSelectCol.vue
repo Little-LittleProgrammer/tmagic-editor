@@ -2,15 +2,23 @@
   <div class="m-fields-code-select-col">
     <div class="code-select-container">
       <!-- 代码块下拉框 -->
-      <m-form-container
+      <MContainer
         class="select"
         :config="selectConfig"
         :model="model"
         :size="size"
-        @change="onParamsChangeHandler"
-      ></m-form-container>
+        @change="onCodeIdChangeHandler"
+      ></MContainer>
+
       <!-- 查看/编辑按钮 -->
-      <Icon v-if="model[name]" class="icon" :icon="!notEditable ? Edit : View" @click="editCode(model[name])"></Icon>
+      <TMagicButton
+        v-if="model[name] && hasCodeBlockSidePanel"
+        class="m-fields-select-action-button"
+        :size="size"
+        @click="editCode(model[name])"
+      >
+        <MIcon :icon="!notEditable ? Edit : View"></MIcon>
+      </TMagicButton>
     </div>
 
     <!-- 参数填写框 -->
@@ -23,14 +31,6 @@
       :params-config="paramsConfig"
       @change="onParamsChangeHandler"
     ></CodeParams>
-
-    <CodeBlockEditor
-      ref="codeBlockEditor"
-      v-if="codeConfig"
-      :disabled="notEditable"
-      :content="codeConfig"
-      @submit="submitCodeBlockHandler"
-    ></CodeBlockEditor>
   </div>
 </template>
 
@@ -39,14 +39,21 @@ import { computed, inject, ref, watch } from 'vue';
 import { Edit, View } from '@element-plus/icons-vue';
 import { isEmpty, map } from 'lodash-es';
 
-import { createValues, type FieldProps, filterFunction, type FormState } from '@tmagic/form';
-import type { Id } from '@tmagic/schema';
+import type { Id } from '@tmagic/core';
+import { TMagicButton } from '@tmagic/design';
+import {
+  type ContainerChangeEventData,
+  createValues,
+  type FieldProps,
+  filterFunction,
+  type FormState,
+  MContainer,
+} from '@tmagic/form';
 
-import CodeBlockEditor from '@editor/components/CodeBlockEditor.vue';
 import CodeParams from '@editor/components/CodeParams.vue';
-import Icon from '@editor/components/Icon.vue';
-import { useCodeBlockEdit } from '@editor/hooks/use-code-block-edit';
-import type { CodeParamStatement, CodeSelectColConfig, Services } from '@editor/type';
+import MIcon from '@editor/components/Icon.vue';
+import type { CodeParamStatement, CodeSelectColConfig, EventBus, Services } from '@editor/type';
+import { SideItemKey } from '@editor/type';
 
 defineOptions({
   name: 'MFieldsCodeSelectCol',
@@ -54,12 +61,20 @@ defineOptions({
 
 const mForm = inject<FormState | undefined>('mForm');
 const services = inject<Services>('services');
-const emit = defineEmits(['change']);
+const eventBus = inject<EventBus>('eventBus');
+const emit = defineEmits<{
+  change: [v: any, eventData: ContainerChangeEventData];
+}>();
 
-const notEditable = computed(() => filterFunction(mForm, props.config.notEditable, props));
 const props = withDefaults(defineProps<FieldProps<CodeSelectColConfig>>(), {
   disabled: false,
 });
+
+const notEditable = computed(() => filterFunction(mForm, props.config.notEditable, props));
+
+const hasCodeBlockSidePanel = computed(() =>
+  (services?.uiService.get('sideBarItems') || []).find((item) => item.$key === SideItemKey.CODE_BLOCK),
+);
 
 /**
  * 根据代码块id获取代码块参数配置
@@ -119,13 +134,33 @@ const selectConfig = {
   },
 };
 
+const onCodeIdChangeHandler = (value: any) => {
+  props.model.params = value.params;
+  emit('change', props.model, {
+    changeRecords: [
+      {
+        propPath: props.prop,
+        value: value[props.name],
+      },
+    ],
+  });
+};
+
 /**
  * 参数值修改更新
  */
-const onParamsChangeHandler = (value: any) => {
+const onParamsChangeHandler = (value: any, eventData: ContainerChangeEventData) => {
   props.model.params = value.params;
-  emit('change', props.model);
+  emit('change', props.model, {
+    ...eventData,
+    changeRecords: (eventData.changeRecords || []).map((item) => ({
+      prop: `${props.prop.replace(props.name, '')}${item.propPath}`,
+      value: item.value,
+    })),
+  });
 };
 
-const { codeBlockEditor, codeConfig, editCode, submitCodeBlockHandler } = useCodeBlockEdit(services?.codeBlockService);
+const editCode = (id: string) => {
+  eventBus?.emit('edit-code', id);
+};
 </script>

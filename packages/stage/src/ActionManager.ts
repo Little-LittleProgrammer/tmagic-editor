@@ -23,17 +23,27 @@ import type { MoveableOptions, OnDragStart } from 'moveable';
 
 import { Env } from '@tmagic/core';
 import type { Id } from '@tmagic/schema';
-import { addClassName, getDocument, removeClassNameByClassName } from '@tmagic/utils';
+import { addClassName, getDocument, getIdFromEl, removeClassNameByClassName } from '@tmagic/utils';
 
-import { CONTAINER_HIGHLIGHT_CLASS_NAME, GHOST_EL_ID_PREFIX, GuidesType, MouseButton, PAGE_CLASS } from './const';
+import {
+  AbleActionEventType,
+  CONTAINER_HIGHLIGHT_CLASS_NAME,
+  ContainerHighlightType,
+  GHOST_EL_ID_PREFIX,
+  GuidesType,
+  MouseButton,
+  PAGE_CLASS,
+  SelectStatus,
+  StageDragStatus,
+} from './const';
 import DragResizeHelper from './DragResizeHelper';
 import StageDragResize from './StageDragResize';
 import StageHighlight from './StageHighlight';
 import StageMultiDragResize from './StageMultiDragResize';
-import {
+import type {
   ActionManagerConfig,
+  ActionManagerEvents,
   CanSelect,
-  ContainerHighlightType,
   CustomizeMoveableOptions,
   CustomizeMoveableOptionsCallbackConfig,
   GetElementsFromPoint,
@@ -42,8 +52,7 @@ import {
   IsContainer,
   Point,
   RemoveEventData,
-  SelectStatus,
-  StageDragStatus,
+  SortEventData,
   UpdateEventData,
 } from './types';
 import { isMoveableButton } from './util';
@@ -56,13 +65,13 @@ const defaultContainerHighlightDuration = 800;
  * @extends EventEmitter
  */
 export default class ActionManager extends EventEmitter {
-  private dr: StageDragResize;
-  private multiDr?: StageMultiDragResize;
-  private highlightLayer: StageHighlight;
+  private dr: StageDragResize | null = null;
+  private multiDr: StageMultiDragResize | null = null;
+  private highlightLayer: StageHighlight | null = null;
   /** 单选、多选、高亮的容器（蒙层的content） */
   private container: HTMLElement;
   /** 当前选中的节点 */
-  private selectedEl: HTMLElement | undefined;
+  private selectedEl: HTMLElement | null = null;
   /** 多选选中的节点组 */
   private selectedElList: HTMLElement[] = [];
   /** 当前高亮的节点 */
@@ -90,13 +99,14 @@ export default class ActionManager extends EventEmitter {
     }
 
     const el = await this.getElementFromPoint(event);
-    if (!el) {
+    const id = getIdFromEl()(el);
+    if (!id) {
       this.clearHighlight();
       return;
     }
 
     this.emit('mousemove', event);
-    this.highlight(el);
+    this.highlight(id);
   }, throttleTime);
 
   constructor(config: ActionManagerConfig) {
@@ -109,7 +119,7 @@ export default class ActionManager extends EventEmitter {
     this.disabledMultiSelect = config.disabledMultiSelect ?? false;
     this.getTargetElement = config.getTargetElement;
     this.getElementsFromPoint = config.getElementsFromPoint;
-    this.canSelect = config.canSelect || ((el: HTMLElement) => !!el.id);
+    this.canSelect = config.canSelect || ((el: HTMLElement) => Boolean(getIdFromEl()(el)));
     this.getRenderDocument = config.getRenderDocument;
     this.isContainer = config.isContainer;
 
@@ -133,7 +143,7 @@ export default class ActionManager extends EventEmitter {
     this.disabledMultiSelect = true;
     if (this.multiDr) {
       this.multiDr.destroy();
-      this.multiDr = undefined;
+      this.multiDr = null;
     }
   }
 
@@ -151,7 +161,7 @@ export default class ActionManager extends EventEmitter {
    * @param guidelines 参考线坐标数组
    */
   public setGuidelines(type: GuidesType, guidelines: number[]): void {
-    this.dr.setGuidelines(type, guidelines);
+    this.dr?.setGuidelines(type, guidelines);
     this.multiDr?.setGuidelines(type, guidelines);
   }
 
@@ -159,7 +169,7 @@ export default class ActionManager extends EventEmitter {
    * 清空所有参考线
    */
   public clearGuides(): void {
-    this.dr.clearGuides();
+    this.dr?.clearGuides();
     this.multiDr?.clearGuides();
   }
 
@@ -168,7 +178,7 @@ export default class ActionManager extends EventEmitter {
    * @param el 变更的元素
    */
   public updateMoveable(el?: HTMLElement): void {
-    this.dr.updateMoveable(el);
+    this.dr?.updateMoveable(el);
     // 多选时不可配置元素，因此不存在多选元素变更，不需要传el
     this.multiDr?.updateMoveable();
   }
@@ -178,14 +188,14 @@ export default class ActionManager extends EventEmitter {
    */
   public isSelectedEl(el: HTMLElement): boolean {
     // 有可能dom已经重新渲染，不再是原来的dom了，所以这里判断id，而不是判断el === this.selectedDom
-    return el.id === this.selectedEl?.id;
+    return getIdFromEl()(el) === getIdFromEl()(this.selectedEl);
   }
 
-  public setSelectedEl(el?: HTMLElement): void {
+  public setSelectedEl(el: HTMLElement | null): void {
     this.selectedEl = el;
   }
 
-  public getSelectedEl(): HTMLElement | undefined {
+  public getSelectedEl(): HTMLElement | null {
     return this.selectedEl;
   }
 
@@ -194,7 +204,7 @@ export default class ActionManager extends EventEmitter {
   }
 
   public getMoveableOption<K extends keyof MoveableOptions>(key: K): MoveableOptions[K] | undefined {
-    if (this.dr.getTarget()) {
+    if (this.dr?.getTarget()) {
       return this.dr.getOption(key);
     }
     if (this.multiDr?.targetList.length) {
@@ -207,7 +217,7 @@ export default class ActionManager extends EventEmitter {
    * @param event 鼠标事件
    * @returns 鼠标下方第一个可选中元素
    */
-  public async getElementFromPoint(event: MouseEvent): Promise<HTMLElement | undefined> {
+  public async getElementFromPoint(event: MouseEvent): Promise<HTMLElement | null> {
     const els = this.getElementsFromPoint(event as Point);
 
     this.emit('get-elements-from-point', els);
@@ -215,11 +225,12 @@ export default class ActionManager extends EventEmitter {
     let stopped = false;
     const stop = () => (stopped = true);
     for (const el of els) {
-      if (!el.id.startsWith(GHOST_EL_ID_PREFIX) && (await this.isElCanSelect(el, event, stop))) {
+      if (!getIdFromEl()(el)?.startsWith(GHOST_EL_ID_PREFIX) && (await this.isElCanSelect(el, event, stop))) {
         if (stopped) break;
         return el;
       }
     }
+    return null;
   }
 
   /**
@@ -257,14 +268,20 @@ export default class ActionManager extends EventEmitter {
     return this.multiDr?.canSelect(el, selectedEl) || false;
   }
 
-  public select(el: HTMLElement, event: MouseEvent | undefined): void {
+  public select(el: HTMLElement | null, event?: MouseEvent): void {
     this.setSelectedEl(el);
     this.clearSelectStatus(SelectStatus.MULTI_SELECT);
-    this.dr.select(el, event);
+    this.dr?.select(el, event);
   }
 
-  public multiSelect(idOrElList: HTMLElement[] | Id[]): void {
-    this.selectedElList = idOrElList.map((idOrEl) => this.getTargetElement(idOrEl));
+  public multiSelect(ids: Id[]): void {
+    this.selectedElList = [];
+    ids.forEach((id) => {
+      const el = this.getTargetElement(id);
+      if (el) {
+        this.selectedElList.push(el);
+      }
+    });
     this.clearSelectStatus(SelectStatus.SELECT);
     this.multiDr?.multiSelect(this.selectedElList);
   }
@@ -277,10 +294,10 @@ export default class ActionManager extends EventEmitter {
     this.highlightedEl = el;
   }
 
-  public highlight(idOrEl: Id | HTMLElement): void {
+  public highlight(id: Id): void {
     let el;
     try {
-      el = this.getTargetElement(idOrEl);
+      el = this.getTargetElement(id);
     } catch (error) {
       this.clearHighlight();
       return;
@@ -293,14 +310,14 @@ export default class ActionManager extends EventEmitter {
     }
     if (el === this.highlightedEl || !el) return;
 
-    this.highlightLayer.highlight(el);
+    this.highlightLayer?.highlight(el);
     this.highlightedEl = el;
     this.emit('highlight', el);
   }
 
   public clearHighlight(): void {
     this.setHighlightEl(undefined);
-    this.highlightLayer.clearHighlight();
+    this.highlightLayer?.clearHighlight();
   }
 
   /**
@@ -312,7 +329,7 @@ export default class ActionManager extends EventEmitter {
       this.multiDr?.clearSelectStatus();
       this.selectedElList = [];
     } else {
-      this.dr.clearSelectStatus();
+      this.dr?.clearSelectStatus();
     }
   }
 
@@ -328,7 +345,11 @@ export default class ActionManager extends EventEmitter {
     const els = this.getElementsFromPoint(event);
 
     for (const el of els) {
-      if (!el.id.startsWith(GHOST_EL_ID_PREFIX) && (await this.isContainer?.(el)) && !excludeElList.includes(el)) {
+      if (
+        !getIdFromEl()(el)?.startsWith(GHOST_EL_ID_PREFIX) &&
+        (await this.isContainer?.(el)) &&
+        !excludeElList.includes(el)
+      ) {
         addClassName(el, doc, this.containerHighlightClassName);
         break;
       }
@@ -352,7 +373,7 @@ export default class ActionManager extends EventEmitter {
   }
 
   public getDragStatus() {
-    return this.dr.getDragStatus();
+    return this.dr?.getDragStatus();
   }
 
   public destroy(): void {
@@ -361,9 +382,30 @@ export default class ActionManager extends EventEmitter {
     this.container.removeEventListener('mouseleave', this.mouseLeaveHandler);
     this.container.removeEventListener('wheel', this.mouseWheelHandler);
     this.container.removeEventListener('dblclick', this.dblclickHandler);
-    this.dr.destroy();
+    this.selectedEl = null;
+    this.selectedElList = [];
+
+    this.dr?.destroy();
     this.multiDr?.destroy();
-    this.highlightLayer.destroy();
+    this.highlightLayer?.destroy();
+
+    this.dr = null;
+    this.multiDr = null;
+    this.highlightLayer = null;
+  }
+
+  public on<Name extends keyof ActionManagerEvents, Param extends ActionManagerEvents[Name]>(
+    eventName: Name,
+    listener: (...args: Param) => void,
+  ) {
+    return super.on(eventName, listener as any);
+  }
+
+  public emit<Name extends keyof ActionManagerEvents, Param extends ActionManagerEvents[Name]>(
+    eventName: Name,
+    ...args: Param
+  ) {
+    return super.emit(eventName, ...args);
   }
 
   private createDr(config: ActionManagerConfig) {
@@ -388,20 +430,23 @@ export default class ActionManager extends EventEmitter {
       // 点击组件并立即拖动的场景，要保证select先被触发，延迟update通知
       setTimeout(() => this.emit('update', data));
     })
-      .on('sort', (data: UpdateEventData) => {
+      .on('sort', (data: SortEventData) => {
         // 点击组件并立即拖动的场景，要保证select先被触发，延迟update通知
         setTimeout(() => this.emit('sort', data));
       })
-      .on('select-parent', () => {
+      .on(AbleActionEventType.SELECT_PARENT, () => {
         this.emit('select-parent');
       })
-      .on('remove', () => {
-        const drTarget = this.dr.getTarget();
+      .on(AbleActionEventType.REMOVE, () => {
+        const drTarget = this.dr?.getTarget();
         if (!drTarget) return;
         const data: RemoveEventData = {
           data: [{ el: drTarget }],
         };
         this.emit('remove', data);
+      })
+      .on(AbleActionEventType.RERENDER, () => {
+        this.emit('rerender');
       })
       .on('drag-start', (e: OnDragStart) => {
         this.emit('drag-start', e);
@@ -430,11 +475,10 @@ export default class ActionManager extends EventEmitter {
       ?.on('update', (data: UpdateEventData) => {
         this.emit('multi-update', data);
       })
-      .on('change-to-select', async (id: Id, e: MouseEvent) => {
+      .on('change-to-select', (id: Id, e: MouseEvent) => {
         // 如果还在多选状态，不触发切换到单选
-        if (this.isMultiSelectStatus) return false;
-        const el = this.getTargetElement(id);
-        this.emit('change-to-select', el, e);
+        if (this.isMultiSelectStatus) return;
+        this.emit('change-to-select', id, e);
       });
 
     return multiDr;
@@ -448,9 +492,9 @@ export default class ActionManager extends EventEmitter {
         if (typeof options === 'function') {
           const cfg: CustomizeMoveableOptionsCallbackConfig = {
             targetEl: this.selectedEl,
-            targetElId: this.selectedEl?.id,
+            targetElId: getIdFromEl()(this.selectedEl),
             targetEls: this.selectedElList,
-            targetElIds: this.selectedElList?.map((item) => item.id),
+            targetElIds: this.selectedElList?.map((item) => getIdFromEl()(item) || ''),
             isMulti,
             document: this.getRenderDocument(),
           };
@@ -474,13 +518,16 @@ export default class ActionManager extends EventEmitter {
     // 如果已有单选选中元素，不是magic-ui-page就可以加入多选列表
     if (this.selectedEl && !this.selectedEl.className.includes(PAGE_CLASS)) {
       this.selectedElList.push(this.selectedEl as HTMLElement);
-      this.setSelectedEl(undefined);
+      this.setSelectedEl(null);
     }
+
     // 判断元素是否已在多选列表
-    const existIndex = this.selectedElList.findIndex((selectedDom) => selectedDom.id === el.id);
+    const existIndex = this.selectedElList.findIndex((selectedDom) => getIdFromEl()(selectedDom) === getIdFromEl()(el));
     if (existIndex !== -1) {
       // 再次点击取消选中
-      this.selectedElList.splice(existIndex, 1);
+      if (this.selectedElList.length > 1) {
+        this.selectedElList.splice(existIndex, 1);
+      }
     } else {
       this.selectedElList.push(el);
     }
@@ -535,6 +582,7 @@ export default class ActionManager extends EventEmitter {
       if (!this.disabledMultiSelect) {
         this.isMultiSelectStatus = false;
       }
+      this.isAltKeydown = false;
     });
     KeyController.global.keyup(ctrl, (e) => {
       e.inputEvent.preventDefault();
@@ -580,6 +628,7 @@ export default class ActionManager extends EventEmitter {
       if (!el) return;
       this.emit('before-select', el, event);
     }
+
     getDocument().addEventListener('mouseup', this.mouseUpHandler);
   };
 

@@ -16,9 +16,9 @@
  * limitations under the License.
  */
 
-import { datetimeFormatter } from '@tmagic/utils';
+import { datetimeFormatter } from '@tmagic/form';
 
-import { ColumnConfig } from './schema';
+import type { ColumnConfig } from './schema';
 
 export const formatter = (item: ColumnConfig, row: any) => {
   if (!item.prop) return '';
@@ -37,3 +37,5 @@ export const formatter = (item: ColumnConfig, row: any) => {
     return row[item.prop];
   }
 };
+
+export const createColumns = (columns: ColumnConfig[]) => columns;

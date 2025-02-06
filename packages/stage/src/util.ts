@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { removeClassName } from '@tmagic/utils';
+import { getIdFromEl, removeClassName } from '@tmagic/utils';
 
 import { GHOST_EL_ID_PREFIX, Mode, SELECTED_CLASS, ZIndex } from './const';
 import type { Offset, SortEventData, TargetElement } from './types';
@@ -88,13 +88,13 @@ export const getAbsolutePosition = (el: HTMLElement, { top, left }: Offset) => {
   return { left, top };
 };
 
-export const isAbsolute = (style: CSSStyleDeclaration): boolean => style.position === 'absolute';
+export const isAbsolute = (style: { position?: string }): boolean => style.position === 'absolute';
 
-export const isRelative = (style: CSSStyleDeclaration): boolean => style.position === 'relative';
+export const isRelative = (style: { position?: string }): boolean => style.position === 'relative';
 
-export const isStatic = (style: CSSStyleDeclaration): boolean => style.position === 'static';
+export const isStatic = (style: { position?: string }): boolean => style.position === 'static';
 
-export const isFixed = (style: CSSStyleDeclaration): boolean => style.position === 'fixed';
+export const isFixed = (style: { position?: string }): boolean => style.position === 'fixed';
 
 export const isFixedParent = (el: Element) => {
   let fixed = false;
@@ -161,27 +161,16 @@ export const addSelectedClassName = (el: Element, doc: Document) => {
   });
 };
 
-export const calcValueByFontsize = (doc: Document, value: number) => {
-  const { fontSize } = doc.documentElement.style;
-
-  if (fontSize) {
-    const times = globalThis.parseFloat(fontSize) / 100;
-    return Number((value / times).toFixed(2));
-  }
-
-  return value;
-};
-
 /**
  * 下移组件位置
  * @param {number} deltaTop 偏移量
  * @param {Object} detail 当前选中的组件配置
  */
-export const down = (deltaTop: number, target: TargetElement): SortEventData | void => {
+export const down = (deltaTop: number, target: TargetElement): SortEventData => {
   let swapIndex = 0;
   let addUpH = target.clientHeight;
   const brothers = Array.from(target.parentNode?.children || []).filter(
-    (node) => !node.id.startsWith(GHOST_EL_ID_PREFIX),
+    (child) => !getIdFromEl()(child as HTMLElement)?.startsWith(GHOST_EL_ID_PREFIX),
   );
   const index = brothers.indexOf(target);
   // 往下移动
@@ -200,9 +189,12 @@ export const down = (deltaTop: number, target: TargetElement): SortEventData | v
     addUpH += ele.clientHeight / 2;
     swapIndex = i;
   }
+
+  const src = getIdFromEl()(target) || '';
+
   return {
-    src: target.id,
-    dist: downEls.length && swapIndex > -1 ? downEls[swapIndex].id : target.id,
+    src,
+    dist: downEls.length && swapIndex > -1 ? getIdFromEl()(downEls[swapIndex]) || '' : src,
   };
 };
 
@@ -213,9 +205,9 @@ export const down = (deltaTop: number, target: TargetElement): SortEventData | v
  * @param {number} deltaTop 偏移量
  * @param {Object} detail 当前选中的组件配置
  */
-export const up = (deltaTop: number, target: TargetElement): SortEventData | void => {
+export const up = (deltaTop: number, target: TargetElement): SortEventData => {
   const brothers = Array.from(target.parentNode?.children || []).filter(
-    (node) => !node.id.startsWith(GHOST_EL_ID_PREFIX),
+    (child) => !getIdFromEl()(child as HTMLElement)?.startsWith(GHOST_EL_ID_PREFIX),
   );
   const index = brothers.indexOf(target);
   // 往上移动
@@ -236,9 +228,12 @@ export const up = (deltaTop: number, target: TargetElement): SortEventData | voi
 
     swapIndex = i;
   }
+
+  const src = getIdFromEl()(target) || '';
+
   return {
-    src: target.id,
-    dist: upEls.length && swapIndex > -1 ? upEls[swapIndex].id : target.id,
+    src,
+    dist: upEls.length && swapIndex > -1 ? getIdFromEl()(upEls[swapIndex]) || '' : src,
   };
 };
 

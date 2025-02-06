@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/naming-convention */
 /*
  * Tencent is pleased to support the open source community by making TMagicEditor available.
  *
@@ -16,21 +17,21 @@
  * limitations under the License.
  */
 
+import { NODE_CONDS_KEY } from '@tmagic/core';
+import { tMagicMessage } from '@tmagic/design';
 import type { FormConfig, FormState, TabPaneConfig } from '@tmagic/form';
 
-import dataSourceService from '@editor/services/dataSource';
-
-const arrayOptions = [
+export const arrayOptions = [
   { text: '包含', value: 'include' },
   { text: '不包含', value: 'not_include' },
 ];
 
-const eqOptions = [
+export const eqOptions = [
   { text: '等于', value: '=' },
   { text: '不等于', value: '!=' },
 ];
 
-const numberOptions = [
+export const numberOptions = [
   { text: '大于', value: '>' },
   { text: '大于等于', value: '>=' },
   { text: '小于', value: '<' },
@@ -41,6 +42,7 @@ const numberOptions = [
 
 export const styleTabConfig: TabPaneConfig = {
   title: '样式',
+  display: ({ services }: any) => !(services.uiService.get('showStylePanel') ?? true),
   items: [
     {
       name: 'style',
@@ -53,6 +55,7 @@ export const styleTabConfig: TabPaneConfig = {
               type: 'data-source-field-select',
               name: 'position',
               text: '固定定位',
+              labelPosition: 'left',
               checkStrictly: false,
               dataSourceFieldType: ['string'],
               fieldConfig: {
@@ -81,7 +84,7 @@ export const styleTabConfig: TabPaneConfig = {
               fieldConfig: {
                 type: 'text',
               },
-              disabled: (vm: FormState, { model }: any) =>
+              disabled: (_vm: FormState, { model }: any) =>
                 model.position === 'fixed' && model._magic_position === 'fixedBottom',
             },
             {
@@ -103,7 +106,7 @@ export const styleTabConfig: TabPaneConfig = {
               fieldConfig: {
                 type: 'text',
               },
-              disabled: (vm: FormState, { model }: any) =>
+              disabled: (_vm: FormState, { model }: any) =>
                 model.position === 'fixed' && model._magic_position === 'fixedTop',
             },
           ],
@@ -112,6 +115,27 @@ export const styleTabConfig: TabPaneConfig = {
           type: 'fieldset',
           legend: '盒子',
           items: [
+            {
+              type: 'data-source-field-select',
+              name: 'display',
+              text: 'display',
+              checkStrictly: false,
+              dataSourceFieldType: ['string'],
+              fieldConfig: {
+                type: 'select',
+                clearable: true,
+                allowCreate: true,
+                options: [
+                  { text: 'block', value: 'block' },
+                  { text: 'flex', value: 'flex' },
+                  { text: 'none', value: 'none' },
+                  { text: 'inline-block', value: 'inline-block' },
+                  { text: 'grid', value: 'grid' },
+                  { text: 'inline', value: 'inline' },
+                  { text: 'initial', value: 'initial' },
+                ],
+              },
+            },
             {
               type: 'data-source-field-select',
               name: 'width',
@@ -140,6 +164,8 @@ export const styleTabConfig: TabPaneConfig = {
               dataSourceFieldType: ['string'],
               fieldConfig: {
                 type: 'select',
+                clearable: true,
+                allowCreate: true,
                 options: [
                   { text: 'visible', value: 'visible' },
                   { text: 'hidden', value: 'hidden' },
@@ -147,6 +173,7 @@ export const styleTabConfig: TabPaneConfig = {
                   { text: 'scroll', value: 'scroll' },
                   { text: 'auto', value: 'auto' },
                   { text: 'overlay', value: 'overlay' },
+                  { text: 'initial', value: 'initial' },
                 ],
               },
             },
@@ -213,7 +240,7 @@ export const styleTabConfig: TabPaneConfig = {
               checkStrictly: false,
               dataSourceFieldType: ['string'],
               fieldConfig: {
-                type: 'text',
+                type: 'img-upload',
               },
             },
             {
@@ -344,11 +371,13 @@ export const advancedTabConfig: TabPaneConfig = {
     {
       name: 'created',
       text: 'created',
+      labelPosition: 'top',
       type: 'code-select',
     },
     {
       name: 'mounted',
       text: 'mounted',
+      labelPosition: 'top',
       type: 'code-select',
     },
   ],
@@ -356,109 +385,13 @@ export const advancedTabConfig: TabPaneConfig = {
 
 export const displayTabConfig: TabPaneConfig = {
   title: '显示条件',
-  display: (vm: FormState, { model }: any) => model.type !== 'page',
+  display: (_vm: FormState, { model }: any) => model.type !== 'page',
   items: [
     {
-      type: 'groupList',
-      name: 'displayConds',
+      type: 'display-conds',
+      name: NODE_CONDS_KEY,
       titlePrefix: '条件组',
-      expandAll: true,
-      items: [
-        {
-          type: 'table',
-          name: 'cond',
-          items: [
-            {
-              type: 'data-source-field-select',
-              name: 'field',
-              value: 'key',
-              label: '字段',
-              checkStrictly: false,
-              dataSourceFieldType: ['string', 'number', 'boolean', 'any'],
-            },
-            {
-              type: 'select',
-              options: (mForm, { model }) => {
-                const [id, ...fieldNames] = model.field;
-
-                const ds = dataSourceService.getDataSourceById(id);
-
-                let fields = ds?.fields || [];
-                let type = '';
-                (fieldNames || []).forEach((fieldName: string) => {
-                  const field = fields.find((f) => f.name === fieldName);
-                  fields = field?.fields || [];
-                  type = field?.type || '';
-                });
-
-                if (type === 'array') {
-                  return arrayOptions;
-                }
-
-                if (type === 'boolean') {
-                  return [
-                    { text: '是', value: 'is' },
-                    { text: '不是', value: 'not' },
-                  ];
-                }
-
-                if (type === 'number') {
-                  return [...eqOptions, ...numberOptions];
-                }
-
-                if (type === 'string') {
-                  return [...arrayOptions, ...eqOptions];
-                }
-
-                return [...arrayOptions, ...eqOptions, ...numberOptions];
-              },
-              label: '条件',
-              name: 'op',
-            },
-            {
-              label: '值',
-              items: [
-                {
-                  name: 'value',
-                  type: (mForm, { model }) => {
-                    const [id, ...fieldNames] = model.field;
-
-                    const ds = dataSourceService.getDataSourceById(id);
-
-                    let fields = ds?.fields || [];
-                    let type = '';
-                    (fieldNames || []).forEach((fieldName: string) => {
-                      const field = fields.find((f) => f.name === fieldName);
-                      fields = field?.fields || [];
-                      type = field?.type || '';
-                    });
-
-                    if (type === 'number') {
-                      return 'number';
-                    }
-
-                    if (type === 'boolean') {
-                      return 'select';
-                    }
-
-                    return 'text';
-                  },
-                  options: [
-                    { text: 'true', value: true },
-                    { text: 'false', value: false },
-                  ],
-                  display: (vm, { model }) => !['between', 'not_between'].includes(model.op),
-                },
-                {
-                  name: 'range',
-                  type: 'number-range',
-                  display: (vm, { model }) => ['between', 'not_between'].includes(model.op),
-                },
-              ],
-            },
-          ],
-        },
-      ],
+      defaultValue: [],
     },
   ],
 };
@@ -485,8 +418,21 @@ export const fillConfig = (config: FormConfig = [], labelWidth = '80px'): FormCo
           // 组件id，必须要有
           {
             name: 'id',
-            type: 'display',
-            text: 'id',
+            text: 'ID',
+            type: 'text',
+            disabled: true,
+            append: {
+              type: 'button',
+              text: '复制',
+              handler: async (vm, { model }) => {
+                try {
+                  await navigator.clipboard.writeText(`${model.id}`);
+                  tMagicMessage.success('已复制');
+                } catch (err) {
+                  tMagicMessage.error('复制失败');
+                }
+              },
+            },
           },
           {
             name: 'name',

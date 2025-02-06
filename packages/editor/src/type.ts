@@ -17,20 +17,31 @@
  */
 
 import type { Component } from 'vue';
+import type EventEmitter from 'events';
+import Sortable, { type Options, type SortableEvent } from 'sortablejs';
 import type { PascalCasedProperties } from 'type-fest';
 
-import type { ChildConfig, ColumnConfig, FilterFunction, FormConfig, FormItem, Input } from '@tmagic/form';
 import type {
   CodeBlockContent,
   CodeBlockDSL,
   DataSourceFieldType,
+  DataSourceSchema,
   Id,
   MApp,
   MContainer,
   MNode,
   MPage,
   MPageFragment,
-} from '@tmagic/schema';
+} from '@tmagic/core';
+import type {
+  ChildConfig,
+  FilterFunction,
+  FormConfig,
+  FormItem,
+  FormState,
+  Input,
+  TableColumnConfig,
+} from '@tmagic/form';
 import type StageCore from '@tmagic/stage';
 import type {
   ContainerHighlightType,
@@ -54,7 +65,6 @@ import type { StageOverlayService } from './services/stageOverlay';
 import type { StorageService } from './services/storage';
 import type { UiService } from './services/ui';
 import type { UndoRedo } from './utils/undo-redo';
-
 export interface FrameworkSlots {
   header(props: {}): any;
   nav(props: {}): any;
@@ -67,8 +77,10 @@ export interface FrameworkSlots {
   'props-panel'(props: {}): any;
   'footer'(props: {}): any;
   'page-bar'(props: {}): any;
+  'page-bar-add-button'(props: {}): any;
   'page-bar-title'(props: { page: MPage | MPageFragment }): any;
   'page-bar-popover'(props: { page: MPage | MPageFragment }): any;
+  'page-list-popover'(props: { list: (MPage | MPageFragment)[] }): any;
 }
 
 export interface WorkspaceSlots {
@@ -78,6 +90,7 @@ export interface WorkspaceSlots {
 
 export interface ComponentListPanelSlots {
   'component-list-panel-header'(props: {}): any;
+  'component-list'(props: { componentGroupList: ComponentGroup[] }): any;
   'component-list-item'(props: { component: ComponentItem }): any;
 }
 
@@ -114,7 +127,7 @@ export type SidebarSlots = LayerPanelSlots & CodeBlockListPanelSlots & Component
 export type BeforeAdd = (config: MNode, parent: MContainer) => Promise<MNode> | MNode;
 export type GetConfig = (config: FormConfig) => Promise<FormConfig> | FormConfig;
 
-export interface InstallOptions {
+export interface EditorInstallOptions {
   parseDSL: <T = any>(dsl: string) => T;
   [key: string]: any;
 }
@@ -141,7 +154,7 @@ export interface StageOptions {
   containerHighlightDuration?: number;
   containerHighlightType?: ContainerHighlightType;
   disabledDragStart?: boolean;
-  render?: (stage: StageCore) => HTMLDivElement | Promise<HTMLDivElement>;
+  render?: (stage: StageCore) => HTMLDivElement | void | Promise<HTMLDivElement | void>;
   moveableOptions?: MoveableOptions | ((config?: CustomizeMoveableOptionsCallbackConfig) => MoveableOptions);
   canSelect?: (el: HTMLElement) => boolean | Promise<boolean>;
   isContainer?: (el: HTMLElement) => boolean | Promise<boolean>;
@@ -149,6 +162,7 @@ export interface StageOptions {
   renderType?: RenderType;
   guidesOptions?: Partial<GuidesOptions>;
   disabledMultiSelect?: boolean;
+  zoom?: number;
 }
 
 export interface StoreState {
@@ -217,6 +231,8 @@ export interface UiState {
   uiSelectMode: boolean;
   /** 是否显示整个配置源码， true: 显示， false: 不显示，默认为false */
   showSrc: boolean;
+  /** 是否将样式配置单独一列显示， true: 显示， false: 不显示，默认为true */
+  showStylePanel: boolean;
   /** 画布显示放大倍数，默认为 1 */
   zoom: number;
   /** 画布容器的宽高 */
@@ -236,8 +252,12 @@ export interface UiState {
   propsPanelSize: 'large' | 'default' | 'small';
   /** 是否显示新增页面按钮 */
   showAddPageButton: boolean;
+  /** 是否在页面工具栏显示呼起页面列表按钮 */
+  showPageListButton: boolean;
   /** 是否隐藏侧边栏 */
   hideSlideBar: boolean;
+  /** 侧边栏面板配置 */
+  sideBarItems: SideComponent[];
 
   // navMenu 的宽高
   navMenuRect: {
@@ -370,10 +390,16 @@ export interface MenuBarData {
 export interface SideComponent extends MenuComponent {
   /** 显示文案 */
   text: string;
+  /** tab样式 */
+  tabStyle?: string | Record<string, any>;
   /** vue组件或url */
-  icon: Component<{}, {}, any>;
+  icon?: any;
   /** slide 唯一标识 key */
   $key: string;
+  /** 是否可以将面板拖出，默认为true */
+  draggable?: boolean;
+  /** 点击切换tab前调用，返回false阻止切换 */
+  beforeClick?: (config: SideComponent) => boolean | Promise<boolean>;
 
   /** 组件扩展参数 */
   boxComponentConfig?: {
@@ -384,12 +410,19 @@ export interface SideComponent extends MenuComponent {
   };
 }
 
+export enum SideItemKey {
+  COMPONENT_LIST = 'component-list',
+  LAYER = 'layer',
+  CODE_BLOCK = 'code-block',
+  DATA_SOURCE = 'data-source',
+}
+
 /**
  * component-list: 组件列表
  * layer: 已选组件树
  * code-block: 代码块
  */
-export type SideItem = 'component-list' | 'layer' | 'code-block' | 'data-source' | SideComponent;
+export type SideItem = `${SideItemKey}` | SideComponent;
 
 /** 工具栏 */
 export interface SideBarData {
@@ -400,12 +433,6 @@ export interface SideBarData {
   /** panel列表 */
   items: SideItem[];
 }
-
-/**
- * drawer 抽屉
- * box 悬浮窗
- */
-export type SlideType = 'drawer' | 'box';
 
 export interface ComponentItem {
   /** 显示文案 */
@@ -427,11 +454,6 @@ export interface ComponentGroup {
   title: string;
   /** 组内列表 */
   items: ComponentItem[];
-}
-
-export interface UpdateData {
-  id: Id;
-  [key: string]: any;
 }
 
 export enum LayerOffset {
@@ -470,7 +492,7 @@ export type CodeState = {
   combineIds: string[];
   /** 为业务逻辑预留的不可删除的代码块列表，由业务逻辑维护（如代码块上线后不可删除） */
   undeletableList: Id[];
-  paramsColConfig?: ColumnConfig;
+  paramsColConfig?: TableColumnConfig;
 };
 
 export type CodeRelation = {
@@ -627,6 +649,8 @@ export interface DataSourceSelect extends FormItem, Input {
    * value: 要编译（数据源data）
    * */
   value?: 'id' | 'value';
+  /** 是否可以编辑数据源，disable表示的是是否可以选择数据源 */
+  notEditable?: boolean | FilterFunction;
 }
 
 export interface DataSourceMethodSelectConfig extends FormItem {
@@ -637,15 +661,36 @@ export interface DataSourceMethodSelectConfig extends FormItem {
 
 export interface DataSourceFieldSelectConfig extends FormItem {
   type: 'data-source-field-select';
-  /** 是否要编译成数据源的data。
+  /**
+   * 是否要编译成数据源的data。
    * key: 不编译，就是要数据源id和field name;
    * value: 要编译（数据源data[`${filed}`]）
    * */
   value?: 'key' | 'value';
   /** 是否严格的遵守父子节点不互相关联 */
-  checkStrictly?: boolean;
+  checkStrictly?:
+    | boolean
+    | ((
+        mForm: FormState | undefined,
+        data: {
+          model: Record<any, any>;
+          values: Record<any, any>;
+          parent?: Record<any, any>;
+          formValue: Record<any, any>;
+          prop: string;
+          config: DataSourceFieldSelectConfig;
+          dataSource?: DataSourceSchema;
+        },
+      ) => boolean);
   dataSourceFieldType?: DataSourceFieldType[];
   fieldConfig?: ChildConfig;
+  /** 是否可以编辑数据源，disable表示的是是否可以选择数据源 */
+  notEditable?: boolean | FilterFunction;
+}
+
+export interface CondOpSelectConfig extends FormItem {
+  type: 'cond-op';
+  parentFields?: string[];
 }
 
 /** 可新增的数据源类型选项 */
@@ -720,3 +765,33 @@ export type SyncHookPlugin<
   C extends Record<T[number], (...args: any) => any>,
 > = AddPrefixToObject<PascalCasedProperties<SyncBeforeHook<T, C>>, 'before'> &
   AddPrefixToObject<PascalCasedProperties<SyncAfterHook<T, C>>, 'after'>;
+
+export interface EventBusEvent {
+  'edit-data-source': [id: string];
+  'remove-data-source': [id: string];
+  'edit-code': [id: string];
+}
+
+export interface EventBus extends EventEmitter {
+  on<Name extends keyof EventBusEvent, Param extends EventBusEvent[Name]>(
+    eventName: Name,
+    listener: (...args: Param) => void,
+  ): this;
+  emit<Name extends keyof EventBusEvent, Param extends EventBusEvent[Name]>(eventName: Name, ...args: Param): boolean;
+}
+
+export type PropsFormConfigFunction = (data: { editorService: EditorService }) => FormConfig;
+export type PropsFormValueFunction = (data: { editorService: EditorService }) => Partial<MNode>;
+
+export type PartSortableOptions = Omit<Options, 'onStart' | 'onUpdate'>;
+export interface PageBarSortOptions extends PartSortableOptions {
+  /** 在onUpdate之后调用 */
+  afterUpdate?: (event: SortableEvent, sortable: Sortable) => void | Promise<void>;
+  /** 在onStart之前调用 */
+  beforeStart?: (event: SortableEvent, sortable: Sortable) => void | Promise<void>;
+}
+
+export type CustomContentMenuFunction = (
+  menus: (MenuButton | MenuComponent)[],
+  type: 'layer' | 'data-source' | 'viewer' | 'code-block',
+) => (MenuButton | MenuComponent)[];

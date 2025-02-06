@@ -18,41 +18,36 @@
 
 import EventEmitter from 'events';
 
-import { cloneDeep, template } from 'lodash-es';
+import { cloneDeep } from 'lodash-es';
 
-import type { AppCore, DataSourceSchema, Id, MNode } from '@tmagic/schema';
-import {
-  compiledNode,
-  DATA_SOURCE_FIELDS_SELECT_VALUE_PREFIX,
-  DSL_NODE_KEY_COPY_PREFIX,
-  getValueByKeyPath,
-} from '@tmagic/utils';
+import type { DataSourceSchema, default as TMagicApp, DisplayCond, Id, MNode, NODE_CONDS_KEY } from '@tmagic/core';
+import { compiledNode } from '@tmagic/core';
 
+import { SimpleObservedData } from './observed-data/SimpleObservedData';
 import { DataSource, HttpDataSource } from './data-sources';
-import type { ChangeEvent, DataSourceManagerData, DataSourceManagerOptions } from './types';
-import { compliedConditions, createIteratorContentData } from './utils';
+import { getDeps } from './depsCache';
+import type { ChangeEvent, DataSourceManagerData, DataSourceManagerOptions, ObservedDataClass } from './types';
+import { compiledNodeField, compliedConditions, compliedIteratorItem, createIteratorContentData } from './utils';
 
 class DataSourceManager extends EventEmitter {
   private static dataSourceClassMap = new Map<string, typeof DataSource>();
+  private static ObservedDataClass: ObservedDataClass = SimpleObservedData;
 
   public static register<T extends typeof DataSource = typeof DataSource>(type: string, dataSource: T) {
     DataSourceManager.dataSourceClassMap.set(type, dataSource);
-  }
-
-  /**
-   * @deprecated
-   */
-  public static registe<T extends typeof DataSource = typeof DataSource>(type: string, dataSource: T) {
-    DataSourceManager.register(type, dataSource);
   }
 
   public static getDataSourceClass(type: string) {
     return DataSourceManager.dataSourceClassMap.get(type);
   }
 
-  public app: AppCore;
+  public static registerObservedData(ObservedDataClass: ObservedDataClass) {
+    DataSourceManager.ObservedDataClass = ObservedDataClass;
+  }
 
-  public dataSourceMap = new Map<string, DataSource>();
+  public app: TMagicApp;
+
+  public dataSourceMap = new Map<string, DataSource & Record<string, any>>();
 
   public data: DataSourceManagerData = {};
   public useMock?: boolean = false;
@@ -71,7 +66,38 @@ class DataSourceManager extends EventEmitter {
       this.addDataSource(config);
     });
 
-    Promise.all(Array.from(this.dataSourceMap).map(async ([, ds]) => this.init(ds)));
+    const dataSourceList = Array.from(this.dataSourceMap);
+
+    if (typeof Promise.allSettled === 'function') {
+      Promise.allSettled<Record<string, any>>(dataSourceList.map(([, ds]) => this.init(ds))).then((values) => {
+        const data: DataSourceManagerData = {};
+        const errors: Record<string, Error> = {};
+
+        values.forEach((value, index) => {
+          const dsId = dataSourceList[index][0];
+          if (value.status === 'fulfilled') {
+            if (this.data[dsId]) {
+              data[dsId] = this.data[dsId];
+            } else {
+              delete data[dsId];
+            }
+          } else if (value.status === 'rejected') {
+            delete data[dsId];
+            errors[dsId] = value.reason;
+          }
+        });
+
+        this.emit('init', data, errors);
+      });
+    } else {
+      Promise.all<Record<string, any>>(dataSourceList.map(([, ds]) => this.init(ds)))
+        .then(() => {
+          this.emit('init', this.data);
+        })
+        .catch(() => {
+          this.emit('init', this.data);
+        });
+    }
   }
 
   public async init(ds: DataSource) {
@@ -83,27 +109,20 @@ class DataSourceManager extends EventEmitter {
       return;
     }
 
-    const beforeInit: ((...args: any[]) => any)[] = [];
-    const afterInit: ((...args: any[]) => any)[] = [];
-
-    ds.methods.forEach((method) => {
+    for (const method of ds.methods) {
       if (typeof method.content !== 'function') return;
       if (method.timing === 'beforeInit') {
-        beforeInit.push(method.content);
+        await method.content({ params: {}, dataSource: ds, app: this.app });
       }
-      if (method.timing === 'afterInit') {
-        afterInit.push(method.content);
-      }
-    });
-
-    for (const method of beforeInit) {
-      await method({ params: {}, dataSource: ds, app: this.app });
     }
 
     await ds.init();
 
-    for (const method of afterInit) {
-      await method({ params: {}, dataSource: ds, app: this.app });
+    for (const method of ds.methods) {
+      if (typeof method.content !== 'function') return;
+      if (method.timing === 'afterInit') {
+        await method.content({ params: {}, dataSource: ds, app: this.app });
+      }
     }
   }
 
@@ -114,7 +133,6 @@ class DataSourceManager extends EventEmitter {
   public async addDataSource(config?: DataSourceSchema) {
     if (!config) return;
 
-    // eslint-disable-next-line @typescript-eslint/naming-convention
     const DataSourceClass = DataSourceManager.dataSourceClassMap.get(config.type) || DataSource;
 
     const ds = new DataSourceClass({
@@ -123,6 +141,7 @@ class DataSourceManager extends EventEmitter {
       request: this.app.request,
       useMock: this.useMock,
       initialData: this.data[config.id],
+      ObservedDataClass: DataSourceManager.ObservedDataClass,
     });
 
     this.dataSourceMap.set(config.id, ds);
@@ -145,6 +164,10 @@ class DataSourceManager extends EventEmitter {
     this.dataSourceMap.delete(id);
   }
 
+  /**
+   * 更新数据源dsl，在编辑器中修改配置后需要更新，一般在其他环境下不需要更新dsl
+   * @param {DataSourceSchema[]} schemas 所有数据源配置
+   */
   public updateSchema(schemas: DataSourceSchema[]) {
     schemas.forEach((schema) => {
       const ds = this.get(schema.id);
@@ -162,6 +185,13 @@ class DataSourceManager extends EventEmitter {
     });
   }
 
+  /**
+   * 将组件dsl中所有key中数据源相关的配置编译成对应的值
+   * @param {MNode} node 组件dsl
+   * @param {string | number} sourceId 数据源ID
+   * @param {boolean} deep 是否编译子项（items)，默认为false
+   * @returns {MNode} 编译后的组件dsl
+   */
   public compiledNode({ items, ...node }: MNode, sourceId?: Id, deep = false) {
     const newNode = cloneDeep(node);
 
@@ -173,81 +203,70 @@ class DataSourceManager extends EventEmitter {
     if (node.condResult === false) return newNode;
     if (node.visible === false) return newNode;
 
+    // 编译函数这里作为参数，方便后续支持自定义编译
     return compiledNode(
-      (value: any) => {
-        // 使用data-source-input等表单控件配置的字符串模板，如：`xxx${id.field}xxx`
-        if (typeof value === 'string') {
-          return template(value)(this.data);
-        }
-
-        // 使用data-source-select等表单控件配置的数据源，如：{ isBindDataSource: true, dataSourceId: 'xxx'}
-        if (value?.isBindDataSource && value.dataSourceId) {
-          return this.data[value.dataSourceId];
-        }
-
-        // 指定数据源的字符串模板，如：{ isBindDataSourceField: true, dataSourceId: 'id', template: `xxx${field}xxx`}
-        if (value?.isBindDataSourceField && value.dataSourceId && typeof value.template === 'string') {
-          return template(value.template)(this.data[value.dataSourceId]);
-        }
-
-        // 使用data-source-field-select等表单控件的数据源字段，如：[`${DATA_SOURCE_FIELDS_SELECT_VALUE_PREFIX}${id}`, 'field']
-        if (Array.isArray(value) && typeof value[0] === 'string') {
-          const [prefixId, ...fields] = value;
-          const prefixIndex = prefixId.indexOf(DATA_SOURCE_FIELDS_SELECT_VALUE_PREFIX);
-
-          if (prefixIndex > -1) {
-            const dsId = prefixId.substring(prefixIndex + DATA_SOURCE_FIELDS_SELECT_VALUE_PREFIX.length);
-
-            const data = this.data[dsId];
-
-            if (!data) return value;
-
-            return getValueByKeyPath(fields.join('.'), data);
-          }
-        }
-
-        return value;
-      },
+      (value: any) => compiledNodeField(value, this.data),
       newNode,
       this.app.dsl?.dataSourceDeps || {},
       sourceId,
     );
   }
 
-  public compliedConds(node: MNode) {
+  /**
+   * 编译组件条件组配置（用于配置组件显示时机）
+   * @param {{ [NODE_CONDS_KEY]?: DisplayCond[] }} node 显示条件组配置
+   * @returns {boolean} 是否显示
+   */
+  public compliedConds(node: { [NODE_CONDS_KEY]?: DisplayCond[] }) {
     return compliedConditions(node, this.data);
   }
 
-  public compliedIteratorItems(itemData: any, items: MNode[], dataSourceField: string[] = []) {
-    return items.map((item) => {
-      const keys: string[] = [];
-      const [dsId, ...fields] = dataSourceField;
+  /**
+   * 编译迭代器容器的迭代项的显示条件
+   * @param {any[]} itemData 迭代数据
+   * @param {{ [NODE_CONDS_KEY]?: DisplayCond[] }} node 显示条件组配置
+   * @param {string[]} dataSourceField 迭代数据在数据源中的字段，格式如['dsId', 'key1', 'key2']
+   * @returns {boolean}是否显示
+   */
+  public compliedIteratorItemConds(
+    itemData: any,
+    node: { [NODE_CONDS_KEY]?: DisplayCond[] },
+    dataSourceField: string[] = [],
+  ) {
+    const [dsId, ...keys] = dataSourceField;
+    const ds = this.get(dsId);
+    if (!ds) return true;
 
-      Object.entries(item).forEach(([key, value]) => {
-        if (
-          typeof value === 'string' &&
-          !key.startsWith(DSL_NODE_KEY_COPY_PREFIX) &&
-          value.includes(`${dsId}`) &&
-          /\$\{([\s\S]+?)\}/.test(value)
-        ) {
-          keys.push(key);
-        }
-      });
+    const ctxData = createIteratorContentData(itemData, ds.id, keys, this.data);
+    return compliedConditions(node, ctxData);
+  }
 
-      return compiledNode(
-        (value: string) => template(value)(createIteratorContentData(itemData, dsId, fields)),
+  public compliedIteratorItems(itemData: any, nodes: MNode[], dataSourceField: string[] = []): MNode[] {
+    const [dsId, ...keys] = dataSourceField;
+    const ds = this.get(dsId);
+    if (!ds) return nodes;
+
+    const inEditor = this.app.platform === 'editor';
+
+    const ctxData = createIteratorContentData(itemData, ds.id, keys, this.data);
+
+    const { deps = {}, condDeps = {} } = getDeps(ds.schema, nodes, inEditor);
+
+    if (!Object.keys(deps).length && !Object.keys(condDeps).length) {
+      return nodes;
+    }
+
+    return nodes.map((item) =>
+      compliedIteratorItem({
+        compile: (value: any) => compiledNodeField(value, ctxData),
+        dsId: ds.id,
         item,
-        {
-          [dsId]: {
-            [item.id]: {
-              name: '',
-              keys,
-            },
-          },
-        },
-        dsId,
-      );
-    });
+        deps,
+        condDeps,
+        inEditor,
+        ctxData,
+      }),
+    );
   }
 
   public destroy() {
@@ -257,6 +276,14 @@ class DataSourceManager extends EventEmitter {
       ds.destroy();
     });
     this.dataSourceMap.clear();
+  }
+
+  public onDataChange(id: string, path: string, callback: (newVal: any) => void) {
+    return this.get(id)?.onDataChange(path, callback);
+  }
+
+  public offDataChange(id: string, path: string, callback: (newVal: any) => void) {
+    return this.get(id)?.offDataChange(path, callback);
   }
 }
 

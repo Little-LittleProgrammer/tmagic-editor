@@ -1,10 +1,7 @@
 {
-  "version": "1.4.0-beta.1",
+  "version": "1.5.2",
   "name": "@tmagic/element-plus-adapter",
   "type": "module",
-  "sideEffects": [
-    "dist/*"
-  ],
   "main": "dist/tmagic-element-plus-adapter.umd.cjs",
   "module": "dist/tmagic-element-plus-adapter.js",
   "types": "types/index.d.ts",
@@ -16,16 +13,20 @@
     },
     "./*": "./*"
   },
+  "files": [
+    "dist",
+    "types",
+    "src"
+  ],
   "license": "Apache-2.0",
   "scripts": {
-    "build": "npm run build:type && vite build",
-    "build:type": "npm run clear:type && tsc --declaration --emitDeclarationOnly --project tsconfig.build.json",
-    "clear:type": "rimraf ./types"
+    "build": "vite build"
   },
   "engines": {
     "node": ">=18"
   },
   "repository": {
+    "directory": "packages/element-plus-adapter",
     "type": "git",
     "url": "https://github.com/Tencent/tmagic-editor.git"
   },
@@ -36,20 +37,19 @@
     "vue3",
     "typescript"
   ],
-  "dependencies": {
-    "@tmagic/design": "1.4.0-beta.1",
-    "element-plus": "^2.6.1",
-    "vue": "^3.4.21"
-  },
-  "peerDependencies": {
-    "@tmagic/design": "1.4.0-beta.1",
-    "element-plus": "^2.6.1",
-    "vue": "^3.4.21"
-  },
   "devDependencies": {
     "@types/node": "^18.19.0",
     "rimraf": "^3.0.2",
-    "typescript": "^5.4.2",
-    "vite": "^5.1.6"
+    "vite": "^6.0.3"
+  },
+  "peerDependencies": {
+    "@tmagic/design": "workspace:*",
+    "element-plus": ">=2.8.0",
+    "typescript": "*"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
   }
 }

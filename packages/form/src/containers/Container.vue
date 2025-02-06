@@ -1,8 +1,8 @@
 <template>
   <div
     v-if="config"
-    :id="config.id"
-    :data-magic-id="config.id"
+    :data-tmagic-id="config.id"
+    :data-tmagic-form-item-prop="itemProp"
     :style="config.tip ? 'display: flex;align-items: baseline;' : ''"
     :class="`m-form-container m-container-${type || ''} ${config.className || ''}`"
   >
@@ -37,9 +37,10 @@
     <template v-else-if="type && display && !showDiff">
       <TMagicFormItem
         :style="config.tip ? 'flex: 1' : ''"
-        :class="{ hidden: `${itemLabelWidth}` === '0' || !text }"
+        :class="{ 'tmagic-form-hidden': `${itemLabelWidth}` === '0' || !text }"
         :prop="itemProp"
         :label-width="itemLabelWidth"
+        :label-position="config.labelPosition"
         :rules="rule"
       >
         <template #label><span v-html="type === 'checkbox' ? '' : text" :title="config.labelTitle"></span></template>
@@ -93,9 +94,10 @@
       <!-- 上次内容 -->
       <TMagicFormItem
         :style="config.tip ? 'flex: 1' : ''"
-        :class="{ hidden: `${itemLabelWidth}` === '0' || !text }"
+        :class="{ 'tmagic-form-hidden': `${itemLabelWidth}` === '0' || !text }"
         :prop="itemProp"
         :label-width="itemLabelWidth"
+        :label-position="config.labelPosition"
         :rules="rule"
         style="background: #f7dadd"
       >
@@ -142,9 +144,10 @@
       <!-- 当前内容 -->
       <TMagicFormItem
         :style="config.tip ? 'flex: 1' : ''"
-        :class="{ hidden: `${itemLabelWidth}` === '0' || !text }"
+        :class="{ 'tmagic-form-hidden': `${itemLabelWidth}` === '0' || !text }"
         :prop="itemProp"
         :label-width="itemLabelWidth"
+        :label-position="config.labelPosition"
         :rules="rule"
         style="background: #def7da"
       >
@@ -191,12 +194,12 @@
     </template>
 
     <template v-else-if="items && display">
-      <template v-if="name || name === 0 ? model[name] : model">
+      <template v-if="isValidName() ? model[name] : model">
         <Container
           v-for="item in items"
           :key="key(item)"
-          :model="name || name === 0 ? model[name] : model"
-          :last-values="name || name === 0 ? lastValues[name] || {} : lastValues"
+          :model="isValidName() ? model[name] : model"
+          :last-values="isValidName() ? lastValues[name] || {} : lastValues"
           :is-compare="isCompare"
           :config="item"
           :size="size"
@@ -220,13 +223,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, ref, resolveComponent, watch, watchEffect } from 'vue';
+import { computed, inject, ref, toRaw, watch, watchEffect } from 'vue';
 import { WarningFilled } from '@element-plus/icons-vue';
 import { isEqual } from 'lodash-es';
 
 import { TMagicButton, TMagicFormItem, TMagicIcon, TMagicTooltip } from '@tmagic/design';
 
-import { ChildConfig, ContainerCommonConfig, FormState, FormValue } from '../schema';
+import type {
+  ChildConfig,
+  ContainerChangeEventData,
+  ContainerCommonConfig,
+  FormState,
+  FormValue,
+  TypeFunction,
+} from '../schema';
 import { display as displayFunction, filterFunction, getRules } from '../utils/form';
 
 defineOptions({
@@ -258,7 +268,10 @@ const props = withDefaults(
   },
 );
 
-const emit = defineEmits(['change', 'addDiffCount']);
+const emit = defineEmits<{
+  change: [v: any, eventData: ContainerChangeEventData];
+  addDiffCount: [];
+}>();
 
 const mForm = inject<FormState | undefined>('mForm');
 
@@ -285,14 +298,15 @@ const itemProp = computed(() => {
   } else {
     return props.prop;
   }
-  return `${props.prop}${props.prop ? '.' : ''}${n}`;
+
+  if (typeof props.prop !== 'undefined' && props.prop !== '') {
+    return `${props.prop}.${n}`;
+  }
+
+  return `${n}`;
 });
 
-const tagName = computed(() => {
-  const component = resolveComponent(`m-${items.value ? 'form' : 'fields'}-${type.value}`);
-  if (typeof component !== 'string') return component;
-  return 'm-fields-text';
-});
+const tagName = computed(() => `m-${items.value ? 'form' : 'fields'}-${type.value}`);
 
 const disabled = computed(() => props.disabled || filterFunction(mForm, props.config.disabled, props));
 
@@ -306,11 +320,7 @@ const rule = computed(() => getRules(mForm, props.config.rules, props));
 
 const type = computed((): string => {
   let { type } = props.config;
-  if (typeof type === 'function') {
-    type = type(mForm, {
-      model: props.model,
-    });
-  }
+  type = type && (filterFunction<string | TypeFunction>(mForm, type, props) as string);
   if (type === 'form') return '';
   if (type === 'container') return '';
   return type?.replace(/([A-Z])/g, '-$1').toLowerCase() || (items.value ? '' : 'text');
@@ -368,18 +378,6 @@ const filterHandler = (filter: any, value: FormValue | number | string) => {
   return value;
 };
 
-const changeHandler = (onChange: any, value: FormValue | number | string) => {
-  if (typeof onChange === 'function') {
-    return onChange(mForm, value, {
-      model: props.model,
-      values: mForm?.initValues,
-      formValue: mForm?.values,
-      prop: itemProp.value,
-      config: props.config,
-    });
-  }
-};
-
 const trimHandler = (trim: any, value: FormValue | number | string) => {
   if (typeof value === 'string' && trim) {
     return value.replace(/^\s*/, '').replace(/\s*$/, '');
@@ -389,28 +387,80 @@ const trimHandler = (trim: any, value: FormValue | number | string) => {
 // 继续抛出给更高层级的组件
 const onAddDiffCount = () => emit('addDiffCount');
 
-const onChangeHandler = async function (v: FormValue, key?: string) {
-  const { filter, onChange, trim, name, dynamicKey } = props.config as any;
-  let value: FormValue | number | string = v;
+const hasModifyKey = (eventDataItem: ContainerChangeEventData) =>
+  typeof eventDataItem?.modifyKey !== 'undefined' && eventDataItem.modifyKey !== '';
+
+const isValidName = () => {
+  const valueType = typeof name.value;
+  if (valueType !== 'string' && valueType !== 'symbol' && valueType !== 'number') {
+    return false;
+  }
+
+  if (name.value === '') {
+    return false;
+  }
+
+  if (typeof name.value === 'number') {
+    return name.value >= 0;
+  }
+
+  return true;
+};
+
+const onChangeHandler = async function (v: any, eventData: ContainerChangeEventData = {}) {
+  const { filter, onChange, trim, dynamicKey } = props.config as any;
+  let value: FormValue | number | string | any[] = toRaw(v);
+  const changeRecords = eventData.changeRecords || [];
+  const newChangeRecords = [...changeRecords];
 
   try {
     value = filterHandler(filter, v);
-    value = (await changeHandler(onChange, value)) ?? value;
+
+    if (typeof onChange === 'function') {
+      value =
+        (await onChange(mForm, value, {
+          model: props.model,
+          values: mForm?.initValues,
+          formValue: mForm?.values,
+          prop: itemProp.value,
+          config: props.config,
+          changeRecords: newChangeRecords,
+        })) ?? value;
+    }
     value = trimHandler(trim, value) ?? value;
   } catch (e) {
     console.error(e);
   }
 
-  // field内容下包含field-link时，model===value, 这里避免循环引用
-  if ((name || name === 0) && props.model !== value && (v !== value || props.model[name] !== value)) {
+  let valueProp = itemProp.value;
+
+  if (hasModifyKey(eventData)) {
+    if (dynamicKey) {
+      props.model[eventData.modifyKey!] = value;
+    } else if (isValidName()) {
+      props.model[name.value][eventData.modifyKey!] = value;
+    }
+
+    valueProp = valueProp ? `${valueProp}.${eventData.modifyKey}` : eventData.modifyKey!;
+
+    // 需要清除掉modifyKey，不然往上层抛出后还会被认为需要修改
+    delete eventData.modifyKey;
+  } else if (isValidName() && props.model !== value && (v !== value || props.model[name.value] !== value)) {
+    // field内容下包含field-link时，model===value, 这里避免循环引用
     // eslint-disable-next-line vue/no-mutating-props
-    props.model[name] = value;
+    props.model[name.value] = value;
   }
-  // 动态表单类型，根据value和key参数，直接修改model
-  if (key !== undefined && dynamicKey) {
-    // eslint-disable-next-line vue/no-mutating-props
-    props.model[key] = value;
+
+  if (changeRecords.length === 0) {
+    newChangeRecords.push({
+      propPath: valueProp,
+      value,
+    });
   }
-  emit('change', props.model);
+
+  emit('change', props.model, {
+    ...eventData,
+    changeRecords: newChangeRecords,
+  });
 };
 </script>

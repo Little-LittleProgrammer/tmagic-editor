@@ -1,4 +1,6 @@
-export default [
+import { createForm } from '@tmagic/editor';
+
+export default createForm([
   {
     text: '文本',
     name: 'text',
@@ -173,7 +175,7 @@ export default [
     legend: '分组',
     extra: 'extra',
     checkbox: true,
-    expand: 'checkbox',
+    expand: true,
     // schematic: 'https://vfiles.gtimg.cn/vupload/20210329/9712631617027075445.png',
     items: [
       {
@@ -183,6 +185,25 @@ export default [
         options: [
           { text: '选项1', value: 1 },
           { text: '选项2', value: 2 },
+        ],
+      },
+    ],
+  },
+  {
+    type: 'tab',
+    name: 'tab',
+    editable: true,
+    dynamic: true,
+    active: '0',
+    tabType: 'border-card',
+    items: [
+      {
+        name: 'xx',
+        items: [
+          {
+            name: 'text',
+            text: 'text',
+          },
         ],
       },
     ],
@@ -263,4 +284,4 @@ export default [
       },
     ],
   },
-];
+]);

@@ -3,6 +3,8 @@
     class="m-editor-stage"
     ref="stageWrap"
     tabindex="-1"
+    v-loading="stageLoading"
+    element-loading-text="Runtime 加载中..."
     :width="stageRect?.width"
     :height="stageRect?.height"
     :wrap-width="stageContainerRect?.width"
@@ -41,16 +43,29 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, markRaw, nextTick, onBeforeUnmount, onMounted, ref, toRaw, watch, watchEffect } from 'vue';
+import {
+  computed,
+  inject,
+  markRaw,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  toRaw,
+  useTemplateRef,
+  watch,
+  watchEffect,
+} from 'vue';
 import { cloneDeep } from 'lodash-es';
 
-import type { MApp, MContainer } from '@tmagic/schema';
-import StageCore, { calcValueByFontsize, getOffset, Runtime } from '@tmagic/stage';
+import type { MApp, MContainer } from '@tmagic/core';
+import StageCore, { getOffset, Runtime } from '@tmagic/stage';
+import { calcValueByFontsize, getIdFromEl } from '@tmagic/utils';
 
 import ScrollViewer from '@editor/components/ScrollViewer.vue';
 import { useStage } from '@editor/hooks/use-stage';
-import { DragType, Layout, type MenuButton, type MenuComponent, type Services, type StageOptions } from '@editor/type';
-import { getConfig } from '@editor/utils/config';
+import type { CustomContentMenuFunction, MenuButton, MenuComponent, Services, StageOptions } from '@editor/type';
+import { DragType, Layout } from '@editor/type';
+import { getEditorConfig } from '@editor/utils/config';
 import { KeyBindingContainerKey } from '@editor/utils/keybinding-config';
 
 import NodeListMenu from './NodeListMenu.vue';
@@ -61,11 +76,12 @@ defineOptions({
   name: 'MEditorStage',
 });
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
+    stageOptions: StageOptions;
     stageContentMenu: (MenuButton | MenuComponent)[];
     disabledStageOverlay?: boolean;
-    customContentMenu?: (menus: (MenuButton | MenuComponent)[], type: string) => (MenuButton | MenuComponent)[];
+    customContentMenu: CustomContentMenuFunction;
   }>(),
   {
     disabledStageOverlay: false,
@@ -76,11 +92,12 @@ let stage: StageCore | null = null;
 let runtime: Runtime | null = null;
 
 const services = inject<Services>('services');
-const stageOptions = inject<StageOptions>('stageOptions');
 
-const stageWrap = ref<InstanceType<typeof ScrollViewer>>();
-const stageContainer = ref<HTMLDivElement>();
-const menu = ref<InstanceType<typeof ViewerMenu>>();
+const stageLoading = computed(() => services?.editorService.get('stageLoading') || false);
+
+const stageWrap = useTemplateRef<InstanceType<typeof ScrollViewer>>('stageWrap');
+const stageContainer = useTemplateRef<HTMLDivElement>('stageContainer');
+const menu = useTemplateRef<InstanceType<typeof ViewerMenu>>('menu');
 
 const nodes = computed(() => services?.editorService.get('nodes') || []);
 const isMultiSelect = computed(() => nodes.value.length > 1);
@@ -95,9 +112,9 @@ watchEffect(() => {
   if (stage || !page.value) return;
 
   if (!stageContainer.value) return;
-  if (!(stageOptions?.runtimeUrl || stageOptions?.render) || !root.value) return;
+  if (!(props.stageOptions?.runtimeUrl || props.stageOptions?.render) || !root.value) return;
 
-  stage = useStage(stageOptions);
+  stage = useStage(props.stageOptions);
 
   stage.on('select', () => {
     stageWrap.value?.container?.focus();
@@ -122,14 +139,30 @@ watchEffect(() => {
   });
 });
 
+onBeforeUnmount(() => {
+  stage?.destroy();
+  services?.editorService.set('stage', null);
+});
+
 watch(zoom, (zoom) => {
   if (!stage || !zoom) return;
   stage.setZoom(zoom);
 });
 
+let timeoutId: NodeJS.Timeout | null = null;
 watch(page, (page) => {
   if (runtime && page) {
     services?.editorService.set('stageLoading', true);
+
+    if (timeoutId) {
+      globalThis.clearTimeout(timeoutId);
+    }
+
+    timeoutId = globalThis.setTimeout(() => {
+      services?.editorService.set('stageLoading', false);
+      timeoutId = null;
+    }, 3000);
+
     runtime.updatePageId?.(page.id);
     nextTick(() => {
       stage?.select(page.id);
@@ -169,7 +202,7 @@ onBeforeUnmount(() => {
   services?.editorService.off('root-change', rootChangeHandler);
 });
 
-const parseDSL = getConfig('parseDSL');
+const parseDSL = getEditorConfig('parseDSL');
 
 const contextmenuHandler = (e: MouseEvent) => {
   e.preventDefault();
@@ -195,19 +228,22 @@ const dropHandler = async (e: DragEvent) => {
 
   e.preventDefault();
 
-  const doc = stage?.renderer.contentWindow?.document;
-  const parentEl: HTMLElement | null | undefined = doc?.querySelector(`.${stageOptions?.containerHighlightClassName}`);
+  const doc = stage?.renderer?.contentWindow?.document;
+  const parentEl: HTMLElement | null | undefined = doc?.querySelector(
+    `.${props.stageOptions?.containerHighlightClassName}`,
+  );
 
   let parent: MContainer | undefined | null = page.value;
-  if (parentEl) {
-    parent = services?.editorService.getNodeById(parentEl.id, false) as MContainer;
+  const parentId = getIdFromEl()(parentEl);
+  if (parentId) {
+    parent = services?.editorService.getNodeById(parentId, false) as MContainer;
   }
 
   if (parent && stageContainer.value && stage) {
     const layout = await services?.editorService.getLayout(parent);
 
     const containerRect = stageContainer.value.getBoundingClientRect();
-    const { scrollTop, scrollLeft } = stage.mask;
+    const { scrollTop, scrollLeft } = stage.mask!;
     const { style = {} } = config.data;
 
     let top = 0;
@@ -223,18 +259,18 @@ const dropHandler = async (e: DragEvent) => {
       top = e.clientY - containerRect.top + scrollTop;
       left = e.clientX - containerRect.left + scrollLeft;
 
-      if (parentEl && doc) {
+      if (parentEl) {
         const { left: parentLeft, top: parentTop } = getOffset(parentEl);
-        left = left - calcValueByFontsize(doc, parentLeft) * zoom.value;
-        top = top - calcValueByFontsize(doc, parentTop) * zoom.value;
+        left = left - parentLeft * zoom.value;
+        top = top - parentTop * zoom.value;
       }
     }
 
     config.data.style = {
       ...style,
       position,
-      top: top / zoom.value,
-      left: left / zoom.value,
+      top: calcValueByFontsize(doc, top / zoom.value),
+      left: calcValueByFontsize(doc, left / zoom.value),
     };
 
     config.data.inputEvent = e;

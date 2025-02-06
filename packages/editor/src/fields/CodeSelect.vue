@@ -1,7 +1,16 @@
 <template>
   <div class="m-fields-code-select" :class="config.className">
     <TMagicCard>
-      <m-form-container :config="codeConfig" :model="model[name]" @change="changeHandler"> </m-form-container>
+      <MContainer
+        :config="codeConfig"
+        :size="size"
+        :prop="prop"
+        :disabled="disabled"
+        :lastValues="lastValues"
+        :model="model[name]"
+        @change="changeHandler"
+      >
+      </MContainer>
     </TMagicCard>
   </div>
 </template>
@@ -10,10 +19,10 @@
 import { computed, inject, watch } from 'vue';
 import { isEmpty } from 'lodash-es';
 
+import { HookCodeType, HookType } from '@tmagic/core';
 import { TMagicCard } from '@tmagic/design';
-import type { FieldProps, FormItem } from '@tmagic/form';
-import { FormState } from '@tmagic/form';
-import { HookCodeType, HookType } from '@tmagic/schema';
+import type { ContainerChangeEventData, FieldProps, FormItem, GroupListConfig } from '@tmagic/form';
+import { MContainer } from '@tmagic/form';
 
 import type { Services } from '@editor/type';
 
@@ -21,7 +30,9 @@ defineOptions({
   name: 'MFieldsCodeSelect',
 });
 
-const emit = defineEmits(['change']);
+const emit = defineEmits<{
+  change: [v: any, eventData: ContainerChangeEventData];
+}>();
 
 const services = inject<Services>('services');
 
@@ -36,12 +47,12 @@ const props = withDefaults(
   {},
 );
 
-const codeConfig = computed(() => ({
+const codeConfig = computed<GroupListConfig>(() => ({
   type: 'group-list',
   name: 'hookData',
   enableToggleMode: false,
   expandAll: true,
-  title: (mForm: FormState, { model, index }: any) => {
+  title: (mForm, { model, index }: any) => {
     if (model.codeType === HookCodeType.DATA_SOURCE_METHOD) {
       if (Array.isArray(model.codeId)) {
         if (model.codeId.length < 2) {
@@ -63,17 +74,19 @@ const codeConfig = computed(() => ({
         {
           type: 'select',
           name: 'codeType',
-          span: 8,
+          span: 6,
           options: [
             { value: HookCodeType.CODE, text: '代码块' },
             { value: HookCodeType.DATA_SOURCE_METHOD, text: '数据源方法' },
           ],
           defaultValue: 'code',
-          onChange: (mForm: FormState, v: HookCodeType, { model }: any) => {
+          onChange: (mForm, v: HookCodeType, { model, prop, changeRecords }) => {
             if (v === HookCodeType.DATA_SOURCE_METHOD) {
               model.codeId = [];
+              changeRecords.push({ propPath: prop.replace('codeType', 'codeId'), value: [] });
             } else {
               model.codeId = '';
+              changeRecords.push({ propPath: prop.replace('codeType', 'codeId'), value: '' });
             }
 
             return v;
@@ -82,17 +95,17 @@ const codeConfig = computed(() => ({
         {
           type: 'code-select-col',
           name: 'codeId',
-          span: 16,
+          span: 18,
           labelWidth: 0,
-          display: (mForm: FormState, { model }: any) => model.codeType !== HookCodeType.DATA_SOURCE_METHOD,
+          display: (mForm, { model }) => model.codeType !== HookCodeType.DATA_SOURCE_METHOD,
           notEditable: () => !services?.codeBlockService.getEditStatus(),
         },
         {
           type: 'data-source-method-select',
           name: 'codeId',
-          span: 16,
+          span: 18,
           labelWidth: 0,
-          display: (mForm: FormState, { model }: any) => model.codeType === HookCodeType.DATA_SOURCE_METHOD,
+          display: (mForm, { model }) => model.codeType === HookCodeType.DATA_SOURCE_METHOD,
           notEditable: () => !services?.dataSourceService.get('editable'),
         },
       ],
@@ -117,7 +130,5 @@ watch(
   },
 );
 
-const changeHandler = async () => {
-  emit('change', props.model[props.name]);
-};
+const changeHandler = (v: any, eventData: ContainerChangeEventData) => emit('change', v, eventData);
 </script>

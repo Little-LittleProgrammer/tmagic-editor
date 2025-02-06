@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /*
  * Tencent is pleased to support the open source community by making TMagicEditor available.
  *
@@ -16,16 +17,42 @@
  * limitations under the License.
  */
 
-import dayjs from 'dayjs';
-import utc from 'dayjs/plugin/utc';
 import { cloneDeep, set as objectSet } from 'lodash-es';
 
-import type { DataSchema, DataSourceDeps, Id, MComponent, MNode } from '@tmagic/schema';
+import type {
+  DataSchema,
+  DataSourceDeps,
+  Id,
+  MApp,
+  MComponent,
+  MContainer,
+  MNode,
+  MNodeInstance,
+  MPage,
+  MPageFragment,
+} from '@tmagic/schema';
 import { NodeType } from '@tmagic/schema';
+
+import type { EditorNodeInfo } from '@editor/type';
 
 export * from './dom';
 
-dayjs.extend(utc);
+// for typeof global checks without @types/node
+declare let global: {};
+
+let _globalThis: any;
+export const getGlobalThis = (): any =>
+  _globalThis ||
+  (_globalThis =
+    typeof globalThis !== 'undefined'
+      ? globalThis
+      : typeof self !== 'undefined'
+      ? self
+      : typeof window !== 'undefined'
+      ? window
+      : typeof global !== 'undefined'
+      ? global
+      : {});
 
 export const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => {
@@ -35,35 +62,10 @@ export const sleep = (ms: number): Promise<void> =>
     }, ms);
   });
 
-export const datetimeFormatter = (
-  v: string | Date,
-  defaultValue = '-',
-  format = 'YYYY-MM-DD HH:mm:ss',
-): string | number => {
-  if (v) {
-    let time = null;
-    if (['x', 'timestamp'].includes(format)) {
-      time = dayjs(v).valueOf();
-    } else if ((typeof v === 'string' && v.includes('Z')) || v.constructor === Date) {
-      // UTC字符串时间或Date对象格式化为北京时间
-      time = dayjs(v).utcOffset(8).format(format);
-    } else {
-      time = dayjs(v).format(format);
-    }
-
-    // 格式化为北京时间
-    if (time !== 'Invalid Date') {
-      return time;
-    }
-    return defaultValue;
-  }
-  return defaultValue;
-};
-
 // 驼峰转换横线
 export const toLine = (name = '') => name.replace(/\B([A-Z])/g, '-$1').toLowerCase();
 
-export const toHump = (name = ''): string => name.replace(/-(\w)/g, (all, letter) => letter.toUpperCase());
+export const toHump = (name = ''): string => name.replace(/-(\w)/g, (_all, letter) => letter.toUpperCase());
 
 export const emptyFn = (): any => undefined;
 
@@ -105,6 +107,39 @@ export const getNodePath = (id: Id, data: MNode[] = []): MNode[] => {
   get(id, data);
 
   return path;
+};
+
+export const getNodeInfo = (id: Id, root: Pick<MApp, 'id' | 'items'> | null) => {
+  const info: EditorNodeInfo = {
+    node: null,
+    parent: null,
+    page: null,
+  };
+
+  if (!root) return info;
+
+  if (id === root.id) {
+    info.node = root;
+    return info;
+  }
+
+  const path = getNodePath(id, root.items);
+
+  if (!path.length) return info;
+
+  path.unshift(root);
+
+  info.node = path[path.length - 1] as MComponent;
+  info.parent = path[path.length - 2] as MContainer;
+
+  path.forEach((item) => {
+    if (isPage(item) || isPageFragment(item)) {
+      info.page = item as MPage | MPageFragment;
+      return;
+    }
+  });
+
+  return info;
 };
 
 export const filterXSS = (str: string) =>
@@ -165,20 +200,30 @@ export const guid = (digit = 8): string =>
     return v.toString(16);
   });
 
-export const getValueByKeyPath: any = (keys = '', data: Record<string | number, any> = {}) =>
+export const getKeysArray = (keys: string | number) =>
   // 将 array[0] 转成 array.0
-  keys
-    .replaceAll(/\[(\d+)\]/g, '.$1')
-    .split('.')
-    .reduce((accumulator, currentValue: any) => {
-      if (isObject(accumulator) || Array.isArray(accumulator)) {
-        return accumulator[currentValue];
-      }
+  `${keys}`.replaceAll(/\[(\d+)\]/g, '.$1').split('.');
 
-      return void 0;
-    }, data);
+export const getValueByKeyPath = (
+  keys: number | string | string[] = '',
+  data: Record<string | number, any> = {},
+): any => {
+  // 将 array[0] 转成 array.0
+  const keyArray = Array.isArray(keys) ? keys : getKeysArray(keys);
+  return keyArray.reduce((accumulator, currentValue: any) => {
+    if (isObject(accumulator)) {
+      return accumulator[currentValue];
+    }
 
-export const setValueByKeyPath: any = (keys: string, value: any, data: Record<string | number, any> = {}) =>
+    if (Array.isArray(accumulator) && /^\d*$/.test(`${currentValue}`)) {
+      return accumulator[currentValue];
+    }
+
+    throw new Error(`${data}中不存在${keys}`);
+  }, data);
+};
+
+export const setValueByKeyPath = (keys: string | number, value: any, data: Record<string | number, any> = {}): any =>
   objectSet(data, keys, value);
 
 export const getNodes = (ids: Id[], data: MNode[] = []): MNode[] => {
@@ -249,7 +294,8 @@ export const replaceChildNode = (newNode: MNode, data?: MNode[], parentId?: Id) 
   parent.items.splice(index, 1, newNode);
 };
 
-export const DSL_NODE_KEY_COPY_PREFIX = '__magic__';
+export const DSL_NODE_KEY_COPY_PREFIX = '__tmagic__';
+export const IS_DSL_NODE_KEY = '__tmagic__dslNode';
 
 export const compiledNode = (
   compile: (value: any) => any,
@@ -266,14 +312,25 @@ export const compiledNode = (
   }
 
   keys.forEach((key) => {
-    const cacheKey = `${DSL_NODE_KEY_COPY_PREFIX}${key}`;
+    const keys = getKeysArray(key);
 
-    const value = getValueByKeyPath(key, node);
+    const cacheKey = keys.map((key, index) => {
+      if (index < keys.length - 1) {
+        return key;
+      }
+      return `${DSL_NODE_KEY_COPY_PREFIX}${key}`;
+    });
+
     let templateValue = getValueByKeyPath(cacheKey, node);
-
     if (typeof templateValue === 'undefined') {
-      setValueByKeyPath(cacheKey, value, node);
-      templateValue = value;
+      try {
+        const value = getValueByKeyPath(key, node);
+        setValueByKeyPath(cacheKey.join('.'), value, node);
+        templateValue = value;
+      } catch (e) {
+        console.warn(e);
+        return;
+      }
     }
 
     let newValue;
@@ -384,6 +441,8 @@ export const getDefaultValueFromFields = (fields: DataSchema[]) => {
 
 export const DATA_SOURCE_FIELDS_SELECT_VALUE_PREFIX = 'ds-field::';
 
+export const DATA_SOURCE_FIELDS_CHANGE_EVENT_PREFIX = 'ds-field-changed';
+
 export const getKeys = Object.keys as <T extends object>(obj: T) => Array<keyof T>;
 
 export const calculatePercentage = (value: number, percentageStr: string) => {
@@ -404,4 +463,65 @@ export const convertToNumber = (value: number | string, parentValue = 0) => {
   }
 
   return parseFloat(value);
+};
+
+/**
+ * 添加参数到URL
+ * @param obj 参数对象
+ * @param global window对象
+ * @param needReload 是否需要刷新
+ */
+export const addParamToUrl = (obj: Record<string, any>, global = globalThis, needReload = true) => {
+  const url = new URL(global.location.href);
+  const { searchParams } = url;
+  for (const [k, v] of Object.entries(obj)) {
+    searchParams.set(k, v);
+  }
+  const newUrl = url.toString();
+  if (needReload) {
+    global.location.href = newUrl;
+  } else {
+    global.history.pushState({}, '', url);
+  }
+};
+
+export const dataSourceTemplateRegExp = /\$\{([\s\S]+?)\}/g;
+
+export const isDslNode = (config: MNodeInstance) =>
+  typeof config[IS_DSL_NODE_KEY] === 'undefined' || config[IS_DSL_NODE_KEY] === true;
+
+export interface NodeItem {
+  items?: NodeItem[];
+  [key: string]: any;
+}
+
+export const traverseNode = <T extends NodeItem = NodeItem>(
+  node: T,
+  cb: (node: T, parents: T[]) => void,
+  parents: T[] = [],
+) => {
+  cb(node, parents);
+
+  if (Array.isArray(node.items) && node.items.length) {
+    parents.push(node);
+    node.items.forEach((item) => {
+      traverseNode(item as T, cb, [...parents]);
+    });
+  }
+};
+
+export const isValueIncludeDataSource = (value: any) => {
+  if (typeof value === 'string' && /\$\{([\s\S]+?)\}/.test(value)) {
+    return true;
+  }
+  if (Array.isArray(value) && `${value[0]}`.startsWith(DATA_SOURCE_FIELDS_SELECT_VALUE_PREFIX)) {
+    return true;
+  }
+  if (value?.isBindDataSource && value.dataSourceId) {
+    return true;
+  }
+  if (value?.isBindDataSourceField && value.dataSourceId) {
+    return true;
+  }
+  return false;
 };

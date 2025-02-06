@@ -10,6 +10,8 @@
       ref="tree"
       :data="nodeData"
       :node-status-map="nodeStatusMap"
+      :indent="indent"
+      :next-level-indent-increment="nextLevelIndentIncrement"
       @node-dragover="handleDragOver"
       @node-dragstart="handleDragStart"
       @node-dragleave="handleDragLeave"
@@ -45,15 +47,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue';
+import { computed, inject, useTemplateRef } from 'vue';
 
+import type { MNode } from '@tmagic/core';
 import { TMagicScrollbar } from '@tmagic/design';
-import type { MNode } from '@tmagic/schema';
 
 import SearchInput from '@editor/components/SearchInput.vue';
 import Tree from '@editor/components/Tree.vue';
 import { useFilter } from '@editor/hooks/use-filter';
-import { LayerPanelSlots, MenuButton, MenuComponent, Services, TreeNodeData } from '@editor/type';
+import type {
+  CustomContentMenuFunction,
+  LayerPanelSlots,
+  MenuButton,
+  MenuComponent,
+  Services,
+  TreeNodeData,
+} from '@editor/type';
 
 import LayerMenu from './LayerMenu.vue';
 import LayerNodeTool from './LayerNodeTool.vue';
@@ -70,13 +79,15 @@ defineOptions({
 
 defineProps<{
   layerContentMenu: (MenuButton | MenuComponent)[];
-  customContentMenu?: (menus: (MenuButton | MenuComponent)[], type: string) => (MenuButton | MenuComponent)[];
+  indent?: number;
+  nextLevelIndentIncrement?: number;
+  customContentMenu: CustomContentMenuFunction;
 }>();
 
 const services = inject<Services>('services');
 const editorService = services?.editorService;
 
-const tree = ref<InstanceType<typeof Tree>>();
+const tree = useTemplateRef<InstanceType<typeof Tree>>('tree');
 
 const page = computed(() => editorService?.get('page'));
 const nodeData = computed<TreeNodeData[]>(() => (!page.value ? [] : [page.value]));

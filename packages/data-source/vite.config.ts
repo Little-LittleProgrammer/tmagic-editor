@@ -22,15 +22,9 @@ import { defineConfig } from 'vite';
 
 import pkg from './package.json';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   resolve: {
-    alias:
-      process.env.NODE_ENV === 'production'
-        ? [{ find: /^@data-source/, replacement: path.join(__dirname, './src') }]
-        : [
-            { find: /^@data-source/, replacement: path.join(__dirname, './src') },
-            { find: /^@tmagic\/schema/, replacement: path.join(__dirname, '../schema/src/index.ts') },
-          ],
+    alias: [{ find: /^@data-source/, replacement: path.join(__dirname, './src') }],
   },
 
   build: {
@@ -48,8 +42,14 @@ export default defineConfig({
     rollupOptions: {
       // 确保外部化处理那些你不想打包进库的依赖
       external(id: string) {
-        return Object.keys(pkg.dependencies).some((k) => new RegExp(`^${k}`).test(id));
+        if (mode === 'umd' && id === 'lodash-es') {
+          return false;
+        }
+        return Object.keys({
+          ...pkg.dependencies,
+          ...pkg.peerDependencies,
+        }).some((k) => new RegExp(`^${k}`).test(id));
       },
     },
   },
-});
+}));

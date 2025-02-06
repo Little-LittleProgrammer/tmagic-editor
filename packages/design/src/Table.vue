@@ -4,6 +4,8 @@
     ref="table"
     :is="uiComponent"
     v-bind="uiProps"
+    row-class-name="tmagic-design-table-row"
+    cell-class-name="tmagic-design-table-cell"
     @select="selectHandler"
     @sort-change="sortChangeHandler"
     @expand-change="expandChangeHandler"
@@ -16,7 +18,7 @@
 <script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue';
 
-import { getConfig } from './config';
+import { getDesignConfig } from './config';
 import type { TableProps } from './types';
 
 defineOptions({
@@ -27,7 +29,7 @@ const props = withDefaults(defineProps<TableProps>(), {
   data: () => [],
 });
 
-const ui = getConfig('components')?.table;
+const ui = getDesignConfig('components')?.table;
 
 const uiComponent = ui?.component || 'el-table';
 

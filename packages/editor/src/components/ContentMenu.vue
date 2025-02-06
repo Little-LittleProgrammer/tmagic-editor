@@ -6,6 +6,7 @@
       ref="menu"
       :style="menuStyle"
       @mouseenter="mouseenterHandler()"
+      @contextmenu.prevent
     >
       <slot name="title"></slot>
       <div>
@@ -36,7 +37,9 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
+
+import { useZIndex } from '@tmagic/design';
 
 import { MenuButton, MenuComponent } from '@editor/type';
 
@@ -66,11 +69,13 @@ const emit = defineEmits<{
   mouseenter: [];
 }>();
 
-const menu = ref<HTMLDivElement>();
-const buttons = ref<InstanceType<typeof ToolButton>[]>();
-const subMenu = ref<any>();
+const menu = useTemplateRef<HTMLDivElement>('menu');
+const buttons = useTemplateRef<InstanceType<typeof ToolButton>[]>('buttons');
+const subMenu = useTemplateRef<any>('subMenu');
 const visible = ref(false);
 const subMenuData = ref<(MenuButton | MenuComponent)[]>([]);
+const zIndex = useZIndex();
+const curZIndex = ref<number>(0);
 
 const menuPosition = ref({
   left: 0,
@@ -78,8 +83,9 @@ const menuPosition = ref({
 });
 
 const menuStyle = computed(() => ({
-  top: `${menuPosition.value.top}px`,
-  left: `${menuPosition.value.left}px`,
+  top: `${menuPosition.value.top + 2}px`,
+  left: `${menuPosition.value.left + 2}px`,
+  zIndex: curZIndex.value,
 }));
 
 const contains = (el: HTMLElement) => menu.value?.contains(el) || subMenu.value?.contains(el);
@@ -93,10 +99,12 @@ const hide = () => {
   emit('hide');
 };
 
-const clickHandler = () => {
+const clickHandler = (event: MouseEvent) => {
   if (!props.autoHide) return;
 
-  hide();
+  if (event.button === 0) {
+    hide();
+  }
 };
 
 const outsideClickHideHandler = (e: MouseEvent) => {
@@ -127,16 +135,15 @@ const setPosition = (e: { clientY: number; clientX: number }) => {
 };
 
 const show = (e?: { clientY: number; clientX: number }) => {
-  // 加settimeout是以为，如果菜单中的按钮监听的是mouseup，那么菜单显示出来时鼠标如果正好在菜单上就会马上触发按钮的mouseup
-  setTimeout(() => {
-    visible.value = true;
+  visible.value = true;
 
-    nextTick(() => {
-      e && setPosition(e);
+  nextTick(() => {
+    e && setPosition(e);
 
-      emit('show');
-    });
-  }, 300);
+    curZIndex.value = zIndex.nextZIndex();
+
+    emit('show');
+  });
 };
 
 const showSubMenu = (item: MenuButton | MenuComponent, index: number) => {
@@ -159,7 +166,7 @@ const showSubMenu = (item: MenuButton | MenuComponent, index: number) => {
         y = rect.top;
       }
       subMenu.value?.show({
-        clientX: menu.value.offsetLeft + menu.value.clientWidth,
+        clientX: menu.value.offsetLeft + menu.value.clientWidth - 2,
         clientY: y,
       });
     }

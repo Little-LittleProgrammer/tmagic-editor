@@ -2,30 +2,41 @@
   <TMagicScrollbar class="data-source-list-panel m-editor-layer-panel">
     <div class="search-wrapper">
       <SearchInput @search="filterTextChangeHandler"></SearchInput>
-      <TMagicPopover v-if="editable" placement="right">
+      <TMagicPopover
+        v-if="editable"
+        placement="right"
+        trigger="hover"
+        popper-class="data-source-list-panel-add-menu"
+        :destroy-on-close="true"
+      >
         <template #reference>
           <TMagicButton type="primary" size="small">新增</TMagicButton>
         </template>
-        <div class="data-source-list-panel-add-menu">
-          <ToolButton
-            v-for="(item, index) in datasourceTypeList"
-            :data="{
-              type: 'button',
-              text: item.text,
-              handler: () => {
-                addHandler(item.type);
-              },
-            }"
-            :key="index"
-          ></ToolButton>
-        </div>
+        <ToolButton
+          v-for="(item, index) in datasourceTypeList"
+          :data="{
+            type: 'button',
+            text: item.text,
+            handler: () => {
+              addHandler(item.type);
+            },
+          }"
+          :key="index"
+        ></ToolButton>
       </TMagicPopover>
 
       <slot name="data-source-panel-search"></slot>
     </div>
 
     <!-- 数据源列表 -->
-    <DataSourceList @edit="editHandler" @remove="removeHandler"></DataSourceList>
+    <DataSourceList
+      ref="dataSourceList"
+      :indent="indent"
+      :next-level-indent-increment="nextLevelIndentIncrement"
+      @edit="editHandler"
+      @remove="removeHandler"
+      @node-contextmenu="nodeContentMenuHandler"
+    ></DataSourceList>
   </TMagicScrollbar>
 
   <DataSourceConfigPanel
@@ -33,24 +44,42 @@
     :disabled="!editable"
     :values="dataSourceValues"
     :title="dialogTitle"
-    :slideType="slideType"
     @submit="submitDataSourceHandler"
   ></DataSourceConfigPanel>
+
+  <Teleport to="body">
+    <ContentMenu
+      v-if="menuData.length"
+      :menu-data="menuData"
+      ref="menu"
+      style="overflow: initial"
+      @hide="contentMenuHideHandler"
+    ></ContentMenu>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
 import { computed, inject, ref } from 'vue';
 import { mergeWith } from 'lodash-es';
 
-import { TMagicButton, TMagicPopover, TMagicScrollbar } from '@tmagic/design';
-import type { DataSourceSchema } from '@tmagic/schema';
+import { TMagicButton, tMagicMessageBox, TMagicPopover, TMagicScrollbar } from '@tmagic/design';
 
+import ContentMenu from '@editor/components/ContentMenu.vue';
 import SearchInput from '@editor/components/SearchInput.vue';
 import ToolButton from '@editor/components/ToolButton.vue';
-import type { DataSourceListSlots, Services, SlideType } from '@editor/type';
+import { useDataSourceEdit } from '@editor/hooks/use-data-source-edit';
+import type {
+  CustomContentMenuFunction,
+  DataSourceListSlots,
+  EventBus,
+  MenuButton,
+  MenuComponent,
+  Services,
+} from '@editor/type';
 
 import DataSourceConfigPanel from './DataSourceConfigPanel.vue';
 import DataSourceList from './DataSourceList.vue';
+import { useContentMenu } from './useContentMenu';
 
 defineSlots<DataSourceListSlots>();
 
@@ -58,19 +87,18 @@ defineOptions({
   name: 'MEditorDataSourceListPanel',
 });
 
-defineProps<{
-  slideType?: SlideType;
+const props = defineProps<{
+  indent?: number;
+  nextLevelIndentIncrement?: number;
+  customContentMenu: CustomContentMenuFunction;
 }>();
 
+const eventBus = inject<EventBus>('eventBus');
 const { dataSourceService } = inject<Services>('services') || {};
 
-const editDialog = ref<InstanceType<typeof DataSourceConfigPanel>>();
+const { editDialog, dataSourceValues, dialogTitle, editable, editHandler, submitDataSourceHandler } =
+  useDataSourceEdit(dataSourceService);
 
-const dataSourceValues = ref<Record<string, any>>({});
-
-const dialogTitle = ref('');
-
-const editable = computed(() => dataSourceService?.get('editable') ?? true);
 const datasourceTypeList = computed(() =>
   [
     { text: '基础', type: 'base' },
@@ -98,30 +126,14 @@ const addHandler = (type: string) => {
   editDialog.value.show();
 };
 
-const editHandler = (id: string) => {
-  if (!editDialog.value) return;
+const removeHandler = async (id: string) => {
+  await tMagicMessageBox.confirm('确定删除?', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning',
+  });
 
-  dataSourceValues.value = {
-    ...dataSourceService?.getDataSourceById(id),
-  };
-
-  dialogTitle.value = `编辑${dataSourceValues.value.title || ''}`;
-
-  editDialog.value.show();
-};
-
-const removeHandler = (id: string) => {
   dataSourceService?.remove(id);
-};
-
-const submitDataSourceHandler = (value: DataSourceSchema) => {
-  if (value.id) {
-    dataSourceService?.update(value);
-  } else {
-    dataSourceService?.add(value);
-  }
-
-  editDialog.value?.hide();
 };
 
 const dataSourceList = ref<InstanceType<typeof DataSourceList>>();
@@ -129,4 +141,17 @@ const dataSourceList = ref<InstanceType<typeof DataSourceList>>();
 const filterTextChangeHandler = (val: string) => {
   dataSourceList.value?.filter(val);
 };
+
+eventBus?.on('edit-data-source', (id: string) => {
+  editHandler(id);
+});
+
+eventBus?.on('remove-data-source', (id: string) => {
+  removeHandler(id);
+});
+
+const { nodeContentMenuHandler, menuData: contentMenuData, contentMenuHideHandler } = useContentMenu();
+const menuData = computed<(MenuButton | MenuComponent)[]>(() =>
+  props.customContentMenu(contentMenuData, 'data-source'),
+);
 </script>

@@ -1,6 +1,6 @@
 <template>
   <div class="editor-app">
-    <m-editor
+    <TMagicEditor
       v-model="value"
       ref="editor"
       :menu="menu"
@@ -17,26 +17,22 @@
       :moveable-options="moveableOptions"
       :auto-scroll-into-view="true"
       :stage-rect="stageRect"
+      :layerContentMenu="contentMenuData"
+      :stageContentMenu="contentMenuData"
       @props-submit-error="propsSubmitErrorHandler"
     >
       <template #workspace-content>
         <DeviceGroup ref="deviceGroup" v-model="stageRect"></DeviceGroup>
       </template>
-    </m-editor>
+    </TMagicEditor>
 
-    <TMagicDialog
-      v-model="previewVisible"
-      destroy-on-close
-      class="pre-viewer"
-      title="预览"
-      :width="stageRect && stageRect.width"
-    >
+    <TMagicDialog v-model="previewVisible" destroy-on-close class="pre-viewer" title="预览" :width="stageRect?.width">
       <iframe
         v-if="previewVisible"
         ref="iframe"
         width="100%"
         style="border: none"
-        :height="stageRect && stageRect.height"
+        :height="stageRect?.height"
         :src="previewUrl"
       ></iframe>
     </TMagicDialog>
@@ -44,17 +40,34 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, nextTick, onBeforeUnmount, ref, toRaw } from 'vue';
+import { computed, markRaw, nextTick, onBeforeUnmount, Ref, ref, toRaw } from 'vue';
 import { useRouter } from 'vue-router';
-import { Coin, Connection, Document } from '@element-plus/icons-vue';
+import { Coin, Connection, CopyDocument, Document, DocumentCopy } from '@element-plus/icons-vue';
+import { cloneDeep } from 'lodash-es';
 import serialize from 'serialize-javascript';
 
-import { TMagicDialog, tMagicMessage, tMagicMessageBox } from '@tmagic/design';
-import { DatasourceTypeOption, editorService, MenuBarData, MoveableOptions, TMagicEditor } from '@tmagic/editor';
-import type { MContainer, MNode } from '@tmagic/schema';
-import { NodeType } from '@tmagic/schema';
-import type { CustomizeMoveableOptionsCallbackConfig } from '@tmagic/stage';
-import { asyncLoadJs } from '@tmagic/utils';
+import type { MApp, MContainer, MNode } from '@tmagic/core';
+import { NodeType } from '@tmagic/core';
+import type {
+  CustomizeMoveableOptionsCallbackConfig,
+  DatasourceTypeOption,
+  MenuBarData,
+  MenuButton,
+  MoveableOptions,
+  Services,
+} from '@tmagic/editor';
+import {
+  asyncLoadJs,
+  calcValueByFontsize,
+  ContentMenu,
+  COPY_STORAGE_KEY,
+  editorService,
+  propsService,
+  TMagicDialog,
+  TMagicEditor,
+  tMagicMessage,
+  tMagicMessageBox,
+} from '@tmagic/editor';
 
 import DeviceGroup from '../components/DeviceGroup.vue';
 import componentGroupList from '../configs/componentGroupList';
@@ -70,7 +83,7 @@ const editor = ref<InstanceType<typeof TMagicEditor>>();
 const deviceGroup = ref<InstanceType<typeof DeviceGroup>>();
 const iframe = ref<HTMLIFrameElement>();
 const previewVisible = ref(false);
-const value = ref(dsl);
+const value = ref<MApp>(dsl);
 const defaultSelected = ref(dsl.items[0].id);
 const propsValues = ref<Record<string, any>>({});
 const propsConfigs = ref<Record<string, any>>({});
@@ -91,6 +104,57 @@ const stageRect = ref({
 const previewUrl = computed(
   () => `${VITE_RUNTIME_PATH}/page/index.html?localPreview=1&page=${editor.value?.editorService.get('page')?.id}`,
 );
+
+const collectorOptions = {
+  id: '',
+  name: '蒙层',
+  isTarget: (key: string | number, value: any) =>
+    typeof key === 'string' && typeof value === 'string' && key.includes('events') && value.startsWith('overlay_'),
+  isCollectByDefault: false,
+};
+
+const usePasteMenu = (menu?: Ref<InstanceType<typeof ContentMenu> | undefined>): MenuButton => ({
+  type: 'button',
+  text: '粘贴(带关联信息)',
+  icon: markRaw(DocumentCopy),
+  display: (services) => !!services?.storageService?.getItem(COPY_STORAGE_KEY),
+  handler: (services) => {
+    const nodes = services?.editorService?.get('nodes');
+    if (!nodes || nodes.length === 0) return;
+
+    if (menu?.value?.$el) {
+      const stage = services?.editorService?.get('stage');
+      const rect = menu.value.$el.getBoundingClientRect();
+      const parentRect = stage?.container?.getBoundingClientRect();
+      const initialLeft =
+        calcValueByFontsize(stage?.renderer?.getDocument(), (rect.left || 0) - (parentRect?.left || 0)) /
+        services.uiService.get('zoom');
+      const initialTop =
+        calcValueByFontsize(stage?.renderer?.getDocument(), (rect.top || 0) - (parentRect?.top || 0)) /
+        services.uiService.get('zoom');
+      services?.editorService?.paste({ left: initialLeft, top: initialTop }, collectorOptions);
+    } else {
+      services?.editorService?.paste({}, collectorOptions);
+      services?.codeBlockService?.paste();
+      services?.dataSourceService?.paste();
+    }
+  },
+});
+
+const contentMenuData = computed<MenuButton[]>(() => [
+  {
+    type: 'button',
+    text: '复制(带关联信息)',
+    icon: markRaw(CopyDocument),
+    handler: (services: Services) => {
+      const nodes = services?.editorService?.get('nodes');
+      nodes && services?.editorService?.copyWithRelated(cloneDeep(nodes), collectorOptions);
+      nodes && services?.codeBlockService?.copyWithRelated(cloneDeep(nodes));
+      nodes && services?.dataSourceService?.copyWithRelated(cloneDeep(nodes));
+    },
+  },
+  usePasteMenu(),
+]);
 
 const menu: MenuBarData = {
   left: [
@@ -224,7 +288,18 @@ asyncLoadJs(`${VITE_ENTRY_PATH}/ds-value/index.umd.cjs`).then(() => {
   datasourceValues.value = (globalThis as any).magicPresetDsValues;
 });
 
-save();
+try {
+  // eslint-disable-next-line no-eval
+  const magicDSL = eval(`(${localStorage.getItem('magicDSL')})`);
+  if (!magicDSL) {
+    save();
+  } else {
+    value.value = magicDSL;
+  }
+} catch (e) {
+  console.error(e);
+  save();
+}
 
 editorService.usePlugin({
   beforeDoAdd: (config: MNode, parent: MContainer) => {
@@ -240,6 +315,10 @@ editorService.usePlugin({
 
     return [config, parent];
   },
+});
+
+propsService.usePlugin({
+  beforeFillConfig: (config) => [config, '100px'],
 });
 
 onBeforeUnmount(() => {

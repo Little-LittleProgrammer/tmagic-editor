@@ -1,8 +1,8 @@
-import { computed, markRaw, Ref } from 'vue';
+import { computed, markRaw, type ShallowRef } from 'vue';
 import { CopyDocument, Delete, DocumentCopy } from '@element-plus/icons-vue';
 
-import { Id, MContainer, NodeType } from '@tmagic/schema';
-import { isPage, isPageFragment } from '@tmagic/utils';
+import { Id, MContainer, NodeType } from '@tmagic/core';
+import { calcValueByFontsize, isPage, isPageFragment } from '@tmagic/utils';
 
 import ContentMenu from '@editor/components/ContentMenu.vue';
 import type { MenuButton, Services } from '@editor/type';
@@ -33,7 +33,7 @@ export const useCopyMenu = (): MenuButton => ({
   },
 });
 
-export const usePasteMenu = (menu?: Ref<InstanceType<typeof ContentMenu> | undefined>): MenuButton => ({
+export const usePasteMenu = (menu?: ShallowRef<InstanceType<typeof ContentMenu> | null>): MenuButton => ({
   type: 'button',
   text: '粘贴',
   icon: markRaw(DocumentCopy),
@@ -46,8 +46,12 @@ export const usePasteMenu = (menu?: Ref<InstanceType<typeof ContentMenu> | undef
       const stage = services?.editorService?.get('stage');
       const rect = menu.value.$el.getBoundingClientRect();
       const parentRect = stage?.container?.getBoundingClientRect();
-      const initialLeft = (rect.left || 0) - (parentRect?.left || 0);
-      const initialTop = (rect.top || 0) - (parentRect?.top || 0);
+      const initialLeft =
+        calcValueByFontsize(stage?.renderer?.getDocument(), (rect.left || 0) - (parentRect?.left || 0)) /
+        services.uiService.get('zoom');
+      const initialTop =
+        calcValueByFontsize(stage?.renderer?.getDocument(), (rect.top || 0) - (parentRect?.top || 0)) /
+        services.uiService.get('zoom');
       services?.editorService?.paste({ left: initialLeft, top: initialTop });
     } else {
       services?.editorService?.paste();

@@ -1,8 +1,8 @@
-import { nextTick, ref } from 'vue';
+import { nextTick, ref, useTemplateRef } from 'vue';
 import { cloneDeep } from 'lodash-es';
 
+import type { CodeBlockContent } from '@tmagic/core';
 import { tMagicMessage } from '@tmagic/design';
-import type { CodeBlockContent } from '@tmagic/schema';
 
 import CodeBlockEditor from '@editor/components/CodeBlockEditor.vue';
 import type { CodeBlockService } from '@editor/services/codeBlock';
@@ -10,7 +10,7 @@ import type { CodeBlockService } from '@editor/services/codeBlock';
 export const useCodeBlockEdit = (codeBlockService?: CodeBlockService) => {
   const codeConfig = ref<CodeBlockContent>();
   const codeId = ref<string>();
-  const codeBlockEditor = ref<InstanceType<typeof CodeBlockEditor>>();
+  const codeBlockEditor = useTemplateRef<InstanceType<typeof CodeBlockEditor>>('codeBlockEditor');
 
   // 新增代码块
   const createCodeBlock = async () => {
@@ -21,7 +21,7 @@ export const useCodeBlockEdit = (codeBlockService?: CodeBlockService) => {
 
     codeConfig.value = {
       name: '',
-      content: `({app, params}) => {\n  // place your code here\n}`,
+      content: `({app, params, flowState}) => {\n  // place your code here\n}`,
       params: [],
     };
 
@@ -66,8 +66,6 @@ export const useCodeBlockEdit = (codeBlockService?: CodeBlockService) => {
     if (!codeId.value) return;
 
     await codeBlockService?.setCodeDslById(codeId.value, values);
-
-    tMagicMessage.success('代码块保存成功');
 
     codeBlockEditor.value?.hide();
   };

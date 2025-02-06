@@ -7,6 +7,7 @@
     :style="`height: ${height}`"
     :inline="inline"
     :label-position="labelPosition"
+    @submit="submitHandler"
   >
     <template v-if="initialized && Array.isArray(config)">
       <Container
@@ -27,15 +28,15 @@
 </template>
 
 <script setup lang="ts">
-import { provide, reactive, ref, toRaw, watch, watchEffect } from 'vue';
+import { provide, reactive, ref, shallowRef, toRaw, watch, watchEffect } from 'vue';
 import { cloneDeep, isEqual } from 'lodash-es';
 
-import { TMagicForm } from '@tmagic/design';
+import { TMagicForm, tMagicMessage, tMagicMessageBox } from '@tmagic/design';
 
 import Container from './containers/Container.vue';
 import { getConfig } from './utils/config';
 import { initValue } from './utils/form';
-import type { FormConfig, FormState, FormValue, ValidateError } from './schema';
+import type { ChangeRecord, ContainerChangeEventData, FormConfig, FormState, FormValue, ValidateError } from './schema';
 
 defineOptions({
   name: 'MForm',
@@ -61,6 +62,7 @@ const props = withDefaults(
     labelPosition?: string;
     keyProp?: string;
     popperClass?: string;
+    preventSubmitDefault?: boolean;
     extendState?: (state: FormState) => Record<string, any> | Promise<Record<string, any>>;
   }>(),
   {
@@ -79,7 +81,7 @@ const props = withDefaults(
   },
 );
 
-const emit = defineEmits(['change', 'error', 'field-input', 'field-change']);
+const emit = defineEmits(['change', 'error', 'field-input', 'field-change', 'update:stepActive']);
 
 const tMagicForm = ref<InstanceType<typeof TMagicForm>>();
 const initialized = ref(false);
@@ -104,11 +106,13 @@ const formState: FormState = reactive<FormState>({
   setField: (prop: string, field: any) => fields.set(prop, field),
   getField: (prop: string) => fields.get(prop),
   deleteField: (prop: string) => fields.delete(prop),
+  $messageBox: tMagicMessageBox,
+  $message: tMagicMessage,
   post: (options: any) => {
     if (requestFuc) {
       return requestFuc({
-        ...options,
         method: 'POST',
+        ...options,
       });
     }
   },
@@ -133,9 +137,13 @@ watchEffect(async () => {
 
 provide('mForm', formState);
 
+const changeRecords = shallowRef<ChangeRecord[]>([]);
+
 watch(
   [() => props.config, () => props.initValues],
   ([config], [preConfig]) => {
+    changeRecords.value = [];
+
     if (!isEqual(toRaw(config), toRaw(preConfig))) {
       initialized.value = false;
     }
@@ -163,8 +171,17 @@ watch(
   { immediate: true },
 );
 
-const changeHandler = () => {
-  emit('change', values.value);
+const changeHandler = (v: FormValue, eventData: ContainerChangeEventData) => {
+  if (eventData.changeRecords?.length) {
+    changeRecords.value.push(...eventData.changeRecords);
+  }
+  emit('change', values.value, eventData);
+};
+
+const submitHandler = (e: SubmitEvent) => {
+  if (props.preventSubmitDefault) {
+    e.preventDefault();
+  }
 };
 
 defineExpose({
@@ -172,10 +189,14 @@ defineExpose({
   lastValuesProcessed,
   formState,
   initialized,
+  changeRecords,
 
   changeHandler,
 
-  resetForm: () => tMagicForm.value?.resetFields(),
+  resetForm: () => {
+    tMagicForm.value?.resetFields();
+    changeRecords.value = [];
+  },
 
   submitForm: async (native?: boolean): Promise<any> => {
     try {

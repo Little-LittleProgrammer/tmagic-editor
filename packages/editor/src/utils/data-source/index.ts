@@ -1,5 +1,11 @@
-import { FormConfig, FormState } from '@tmagic/form';
-import { DataSchema, DataSourceSchema } from '@tmagic/schema';
+import { DataSchema, DataSourceFieldType, DataSourceSchema } from '@tmagic/core';
+import { CascaderOption, FormConfig, FormState } from '@tmagic/form';
+import {
+  DATA_SOURCE_FIELDS_SELECT_VALUE_PREFIX,
+  dataSourceTemplateRegExp,
+  getKeysArray,
+  isNumber,
+} from '@tmagic/utils';
 
 import BaseFormConfig from './formConfigs/base';
 import HttpFormConfig from './formConfigs/http';
@@ -32,7 +38,6 @@ const fillConfig = (config: FormConfig): FormConfig => [
       },
       {
         title: '事件配置',
-        display: false,
         items: [
           {
             name: 'events',
@@ -53,7 +58,7 @@ const fillConfig = (config: FormConfig): FormConfig => [
       },
       {
         title: '请求参数裁剪',
-        display: (formState: FormState, { model }: any) => model.type === 'http',
+        display: (_formState: FormState, { model }: any) => model.type === 'http',
         items: [
           {
             name: 'beforeRequest',
@@ -65,7 +70,7 @@ const fillConfig = (config: FormConfig): FormConfig => [
       },
       {
         title: '响应数据裁剪',
-        display: (formState: FormState, { model }: any) => model.type === 'http',
+        display: (_formState: FormState, { model }: any) => model.type === 'http',
         items: [
           {
             name: 'afterResponse',
@@ -118,7 +123,7 @@ export const getFormValue = (type: string, values: Partial<DataSourceSchema>): P
    * context：上下文对象
    *
    * interface Content {
-   *  app: AppCore;
+   *  app: TMagicApp;
    *  dataSource: HttpDataSource;
    * }
    *
@@ -135,7 +140,7 @@ export const getFormValue = (type: string, values: Partial<DataSourceSchema>): P
     * context：上下文对象
     *
     * interface Content {
-    *  app: AppCore;
+    *  app: TMagicApp;
     *  dataSource: HttpDataSource;
     * }
     *
@@ -152,7 +157,7 @@ export const getDisplayField = (dataSources: DataSourceSchema[], key: string) =>
   const displayState: { value: string; type: 'var' | 'text' }[] = [];
 
   // 匹配es6字符串模块
-  const matches = key.matchAll(/\$\{([\s\S]+?)\}/g);
+  const matches = key.matchAll(dataSourceTemplateRegExp);
   let index = 0;
   for (const match of matches) {
     if (typeof match.index === 'undefined') break;
@@ -166,9 +171,8 @@ export const getDisplayField = (dataSources: DataSourceSchema[], key: string) =>
     let dsText = '';
     let ds: DataSourceSchema | undefined;
     let fields: DataSchema[] | undefined;
-
     // 将模块解析成数据源对应的值
-    match[1].split('.').forEach((item, index) => {
+    getKeysArray(match[1]).forEach((item, index) => {
       if (index === 0) {
         ds = dataSources.find((ds) => ds.id === item);
         dsText += ds?.title || item;
@@ -176,9 +180,13 @@ export const getDisplayField = (dataSources: DataSourceSchema[], key: string) =>
         return;
       }
 
-      const field = fields?.find((field) => field.name === item);
-      fields = field?.fields;
-      dsText += `.${field?.title || item}`;
+      if (isNumber(item)) {
+        dsText += `[${item}]`;
+      } else {
+        const field = fields?.find((field) => field.name === item);
+        fields = field?.fields;
+        dsText += `.${field?.title || item}`;
+      }
     });
 
     displayState.push({
@@ -198,3 +206,46 @@ export const getDisplayField = (dataSources: DataSourceSchema[], key: string) =>
 
   return displayState;
 };
+
+export const getCascaderOptionsFromFields = (
+  fields: DataSchema[] = [],
+  dataSourceFieldType: DataSourceFieldType[] = ['any'],
+): CascaderOption[] => {
+  const child: CascaderOption[] = [];
+  fields.forEach((field) => {
+    if (!dataSourceFieldType.length) {
+      dataSourceFieldType.push('any');
+    }
+
+    let children: CascaderOption[] = [];
+    if (field.type && ['any', 'array', 'object'].includes(field.type)) {
+      children = getCascaderOptionsFromFields(field.fields, dataSourceFieldType);
+    }
+
+    const item = {
+      label: `${field.title || field.name}(${field.type})`,
+      value: field.name,
+      children,
+    };
+
+    const fieldType = field.type || 'any';
+    if (dataSourceFieldType.includes('any') || dataSourceFieldType.includes(fieldType)) {
+      child.push(item);
+      return;
+    }
+
+    if (!dataSourceFieldType.includes(fieldType) && !['array', 'object', 'any'].includes(fieldType)) {
+      return;
+    }
+
+    if (!children.length && ['object', 'array', 'any'].includes(field.type || '')) {
+      return;
+    }
+
+    child.push(item);
+  });
+  return child;
+};
+
+export const removeDataSourceFieldPrefix = (id?: string) =>
+  id?.replace(DATA_SOURCE_FIELDS_SELECT_VALUE_PREFIX, '') || '';

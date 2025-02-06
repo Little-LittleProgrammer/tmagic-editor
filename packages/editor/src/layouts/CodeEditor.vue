@@ -5,12 +5,8 @@
         :class="`magic-code-editor-wrapper${fullScreen ? ' full-screen' : ''}`"
         :style="!fullScreen && height ? `height: ${height}` : '100%'"
       >
-        <TMagicButton
-          class="magic-code-editor-full-screen-icon"
-          circle
-          size="small"
-          :icon="FullScreen"
-          @click="fullScreenHandler"
+        <TMagicButton class="magic-code-editor-full-screen-icon" circle size="small" @click="fullScreenHandler"
+          ><MIcon :icon="FullScreen"></MIcon
         ></TMagicButton>
         <div ref="codeEditor" class="magic-code-editor-content"></div>
       </div>
@@ -19,14 +15,15 @@
 </template>
 
 <script lang="ts" setup>
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { FullScreen } from '@element-plus/icons-vue';
 import { throttle } from 'lodash-es';
 import serialize from 'serialize-javascript';
 
 import { TMagicButton } from '@tmagic/design';
 
-import { getConfig } from '@editor/utils/config';
+import MIcon from '@editor/components/Icon.vue';
+import { getEditorConfig } from '@editor/utils/config';
 import monaco from '@editor/utils/monaco-editor';
 
 defineOptions({
@@ -79,7 +76,7 @@ const toString = (v: string | any, language: string): string => {
   return value;
 };
 
-const parse = (v: string | any, language: string): any => {
+const parseCode = (v: string | any, language: string): any => {
   if (typeof v !== 'string') {
     return v;
   }
@@ -88,7 +85,7 @@ const parse = (v: string | any, language: string): any => {
     return JSON.parse(v);
   }
 
-  return getConfig('parseDSL')(v);
+  return getEditorConfig('parseDSL')(v);
 };
 
 let vsEditor: monaco.editor.IStandaloneCodeEditor | null = null;
@@ -96,7 +93,7 @@ let vsDiffEditor: monaco.editor.IStandaloneDiffEditor | null = null;
 
 const values = ref('');
 const loading = ref(false);
-const codeEditor = ref<HTMLDivElement>();
+const codeEditor = useTemplateRef<HTMLDivElement>('codeEditor');
 
 const resizeObserver = new globalThis.ResizeObserver(
   throttle((): void => {
@@ -152,7 +149,7 @@ const init = async () => {
       e.stopPropagation();
       const newValue = getEditorValue();
       values.value = newValue;
-      emit('save', props.parse ? parse(newValue, props.language) : newValue);
+      emit('save', props.parse ? parseCode(newValue, props.language) : newValue);
     }
   });
 
@@ -161,7 +158,7 @@ const init = async () => {
       const newValue = getEditorValue();
       if (values.value !== newValue) {
         values.value = newValue;
-        emit('save', props.parse ? parse(newValue, props.language) : newValue);
+        emit('save', props.parse ? parseCode(newValue, props.language) : newValue);
       }
     });
   }

@@ -11,7 +11,15 @@
     </slot>
 
     <!-- 代码块列表 -->
-    <CodeBlockList ref="codeBlockList" :custom-error="customError" @edit="editCode" @remove="deleteCode">
+    <CodeBlockList
+      ref="codeBlockList"
+      :custom-error="customError"
+      :indent="indent"
+      :next-level-indent-increment="nextLevelIndentIncrement"
+      @edit="editCode"
+      @remove="deleteCode"
+      @node-contextmenu="nodeContentMenuHandler"
+    >
       <template #code-block-panel-tool="{ id, data }">
         <slot name="code-block-panel-tool" :id="id" :data="data"></slot>
       </template>
@@ -23,23 +31,42 @@
     ref="codeBlockEditor"
     :disabled="!editable"
     :content="codeConfig"
-    :slideType="slideType"
     @submit="submitCodeBlockHandler"
   ></CodeBlockEditor>
+
+  <Teleport to="body">
+    <ContentMenu
+      v-if="menuData.length"
+      :menu-data="menuData"
+      ref="menu"
+      style="overflow: initial"
+      @hide="contentMenuHideHandler"
+    ></ContentMenu>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue';
+import { computed, inject, useTemplateRef } from 'vue';
 
+import type { Id } from '@tmagic/core';
 import { TMagicButton, TMagicScrollbar } from '@tmagic/design';
-import type { Id } from '@tmagic/schema';
 
 import CodeBlockEditor from '@editor/components/CodeBlockEditor.vue';
+import ContentMenu from '@editor/components/ContentMenu.vue';
 import SearchInput from '@editor/components/SearchInput.vue';
 import { useCodeBlockEdit } from '@editor/hooks/use-code-block-edit';
-import type { CodeBlockListPanelSlots, CodeDeleteErrorType, Services, SlideType } from '@editor/type';
+import type {
+  CodeBlockListPanelSlots,
+  CodeDeleteErrorType,
+  CustomContentMenuFunction,
+  EventBus,
+  MenuButton,
+  MenuComponent,
+  Services,
+} from '@editor/type';
 
 import CodeBlockList from './CodeBlockList.vue';
+import { useContentMenu } from './useContentMenu';
 
 defineSlots<CodeBlockListPanelSlots>();
 
@@ -47,11 +74,14 @@ defineOptions({
   name: 'MEditorCodeBlockListPanel',
 });
 
-defineProps<{
+const props = defineProps<{
+  indent?: number;
+  nextLevelIndentIncrement?: number;
   customError?: (id: Id, errorType: CodeDeleteErrorType) => any;
-  slideType?: SlideType;
+  customContentMenu: CustomContentMenuFunction;
 }>();
 
+const eventBus = inject<EventBus>('eventBus');
 const { codeBlockService } = inject<Services>('services') || {};
 
 const editable = computed(() => codeBlockService?.getEditStatus());
@@ -59,9 +89,22 @@ const editable = computed(() => codeBlockService?.getEditStatus());
 const { codeBlockEditor, codeConfig, editCode, deleteCode, createCodeBlock, submitCodeBlockHandler } =
   useCodeBlockEdit(codeBlockService);
 
-const codeBlockList = ref<InstanceType<typeof CodeBlockList>>();
+const codeBlockList = useTemplateRef<InstanceType<typeof CodeBlockList>>('codeBlockList');
 
 const filterTextChangeHandler = (val: string) => {
   codeBlockList.value?.filter(val);
 };
+
+eventBus?.on('edit-code', (id: string) => {
+  editCode(id);
+});
+
+const {
+  nodeContentMenuHandler,
+  menuData: contentMenuData,
+  contentMenuHideHandler,
+} = useContentMenu((id: string) => {
+  codeBlockList.value?.deleteCode(id);
+});
+const menuData = computed<(MenuButton | MenuComponent)[]>(() => props.customContentMenu(contentMenuData, 'code-block'));
 </script>

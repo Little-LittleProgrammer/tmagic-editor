@@ -15,9 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 export { default as DataSourceManager } from './DataSourceManager';
 export * from './data-sources';
 export * from './createDataSourceManager';
+export * from './observed-data';
 export * from './utils';
 export * from './types';

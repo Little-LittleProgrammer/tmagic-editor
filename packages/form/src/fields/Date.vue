@@ -5,17 +5,17 @@
     :size="size"
     :placeholder="config.placeholder"
     :disabled="disabled"
-    :format="config.format"
-    :value-format="config.valueFormat || 'YYYY/MM/DD HH:mm:ss'"
+    :format="config.format || 'YYYY/MM/DD'"
+    :value-format="config.valueFormat || 'YYYY/MM/DD'"
     @change="changeHandler"
   ></TMagicDatePicker>
 </template>
 
 <script lang="ts" setup>
 import { TMagicDatePicker } from '@tmagic/design';
-import { datetimeFormatter } from '@tmagic/utils';
 
 import type { DateConfig, FieldProps } from '../schema';
+import { datetimeFormatter } from '../utils/form';
 import { useAddField } from '../utils/useAddField';
 
 defineOptions({
@@ -30,7 +30,7 @@ const emit = defineEmits<{
 
 useAddField(props.prop);
 
-props.model[props.name] = datetimeFormatter(props.model[props.name], '');
+props.model[props.name] = datetimeFormatter(props.model[props.name], '', props.config.valueFormat || 'YYYY/MM/DD');
 
 const changeHandler = (v: string) => {
   emit('change', v);

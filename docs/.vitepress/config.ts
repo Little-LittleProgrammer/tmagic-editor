@@ -68,6 +68,10 @@ export default defineConfig({
               text: '编辑器扩展',
               link: '/guide/editor-expand.md'
             },
+            {
+              text: '升级到1.5.x',
+              link: '/guide/migration.md'
+            },
           ]
         },
         {
@@ -92,6 +96,10 @@ export default defineConfig({
             {
               text: '代码块',
               link: '/guide/advanced/code-block.md',
+            },
+            {
+              text: '数据源',
+              link: '/guide/advanced/data-source.md'
             },
             {
               text: '@tmagic/ui',

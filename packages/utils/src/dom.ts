@@ -110,3 +110,39 @@ export const createDiv = ({ className, cssText }: { className: string; cssText: 
 };
 
 export const getDocument = () => globalThis.document;
+
+export const calcValueByFontsize = (doc: Document | undefined, value: number) => {
+  if (!doc) return value;
+  const { fontSize } = doc.documentElement.style;
+
+  if (fontSize) {
+    const times = globalThis.parseFloat(fontSize) / 100;
+    return Number((value / times).toFixed(2));
+  }
+
+  return value;
+};
+
+const dslDomRelateConfig = {
+  getIdFromEl: (el?: HTMLElement | SVGElement | null) => el?.dataset?.tmagicId,
+  getElById: (doc?: Document, id?: string | number) => doc?.querySelector(`[data-tmagic-id="${id}"]`) as HTMLElement,
+  setIdToEl: (el: HTMLElement | SVGElement, id: string | number) => {
+    el.dataset.tmagicId = `${id}`;
+  },
+};
+
+export const setDslDomRelateConfig = <
+  K extends keyof typeof dslDomRelateConfig,
+  T extends (typeof dslDomRelateConfig)[K],
+>(
+  name: K,
+  value: T,
+) => {
+  dslDomRelateConfig[name] = value;
+};
+
+export const getIdFromEl = () => dslDomRelateConfig.getIdFromEl;
+
+export const getElById = () => dslDomRelateConfig.getElById;
+
+export const setIdToEl = () => dslDomRelateConfig.setIdToEl;

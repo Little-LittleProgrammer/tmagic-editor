@@ -18,46 +18,51 @@
 
 import { createApp, defineAsyncComponent } from 'vue';
 
-import Core from '@tmagic/core';
-import { DataSourceManager } from '@tmagic/data-source';
-import { getUrlParam } from '@tmagic/utils';
+import TMagicApp, { DataSourceManager, DeepObservedData, getUrlParam, registerDataSourceOnDemand } from '@tmagic/core';
 
 import components from '../.tmagic/async-comp-entry';
-import datasources from '../.tmagic/datasource-entry';
+import asyncDataSources from '../.tmagic/async-datasource-entry';
 import plugins from '../.tmagic/plugin-entry';
 
-import request from './utils/request';
+import request, { service } from './utils/request';
 import AppComponent from './App.vue';
 import { getLocalConfig } from './utils';
 
-import '@tmagic/utils/resetcss.css';
+import '@tmagic/core/resetcss.css';
 
-const magicApp = createApp(AppComponent);
+DataSourceManager.registerObservedData(DeepObservedData);
 
-magicApp.use(request);
+const vueApp = createApp(AppComponent);
 
-Object.entries(components).forEach(([type, component]: [string, any]) => {
-  magicApp.component(`magic-ui-${type}`, defineAsyncComponent(component));
-});
+vueApp.use(request);
 
-Object.entries(datasources).forEach(([type, ds]: [string, any]) => {
-  DataSourceManager.register(type, ds);
-});
+const dsl = ((getUrlParam('localPreview') ? getLocalConfig() : window.magicDSL) || [])[0] || {};
 
-Object.values(plugins).forEach((plugin: any) => {
-  magicApp.use(plugin);
-});
-
-const app = new Core({
+const app = new TMagicApp({
   ua: window.navigator.userAgent,
-  config: ((getUrlParam('localPreview') ? getLocalConfig() : window.magicDSL) || [])[0] || {},
+  config: dsl,
+  request: service,
   curPage: getUrlParam('page'),
   useMock: Boolean(getUrlParam('useMock')),
 });
 
 app.setDesignWidth(app.env.isWeb ? window.document.documentElement.getBoundingClientRect().width : 375);
 
-magicApp.config.globalProperties.app = app;
-magicApp.provide('app', app);
+Object.entries(components).forEach(([type, component]: [string, any]) => {
+  app.registerComponent(type, defineAsyncComponent(component));
+});
 
-magicApp.mount('#app');
+Object.values(plugins).forEach((plugin: any) => {
+  vueApp.use(plugin, { app });
+});
+
+registerDataSourceOnDemand(dsl, asyncDataSources).then((dataSources) => {
+  Object.entries(dataSources).forEach(([type, ds]: [string, any]) => {
+    DataSourceManager.register(type, ds);
+  });
+
+  vueApp.config.globalProperties.app = app;
+  vueApp.provide('app', app);
+
+  vueApp.mount('#app');
+});

@@ -18,7 +18,7 @@ https://tencent.github.io/tmagic-editor/playground/index.html
 
 node.js >= 18
 
-pnpm >= 8
+pnpm >= 9
 
 先安装 pnpm
 
@@ -82,6 +82,13 @@ tmagic-editor主要定位是搭建生成移动端H5页面，如果有搭建PC端
 ### 参与贡献
 
 如果你有好的意见或建议，欢迎给我们提 Issues 或 Pull Requests，为提升魔方可视化编辑器开发体验贡献力量。<br>详见：[CONTRIBUTING.md](./CONTRIBUTING.md)
+
+## 贡献者
+
+<a href="https://github.com/Tencent/tmagic-editor/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Tencent/tmagic-editor" />
+</a>
+
 
 ### 欢迎入群交流
 

@@ -1,33 +1,48 @@
 {
-  "version": "1.4.0-beta.1",
+  "version": "1.5.2",
   "name": "@tmagic/ui",
   "type": "module",
-  "main": "src/index.ts",
+  "main": "dist/tmagic-ui.js",
+  "types": "types/index.d.ts",
+  "files": [
+    "src",
+    "dist",
+    "types"
+  ],
   "engines": {
     "node": ">=18"
   },
+  "scripts": {
+    "build": "vite build"
+  },
   "license": "Apache-2.0",
   "repository": {
+    "directory": "packages/ui",
     "type": "git",
     "url": "https://github.com/Tencent/tmagic-editor.git"
   },
   "dependencies": {
-    "@tmagic/core": "1.4.0-beta.1",
-    "@tmagic/schema": "1.4.0-beta.1",
-    "@tmagic/utils": "1.4.0-beta.1",
-    "delegate": "^3.2.0",
-    "qrcode": "^1.5.0",
-    "tiny-emitter": "^2.1.0",
-    "vue": "^3.4.21"
+    "@tmagic/vue-button": "workspace:*",
+    "@tmagic/vue-container": "workspace:*",
+    "@tmagic/vue-img": "workspace:*",
+    "@tmagic/vue-iterator-container": "workspace:*",
+    "@tmagic/vue-overlay": "workspace:*",
+    "@tmagic/vue-page": "workspace:*",
+    "@tmagic/vue-page-fragment": "workspace:*",
+    "@tmagic/vue-page-fragment-container": "workspace:*",
+    "@tmagic/vue-qrcode": "workspace:*",
+    "@tmagic/vue-text": "workspace:*"
   },
   "peerDependencies": {
-    "qrcode": "^1.5.0",
-    "vue": "^3.4.21"
+    "typescript": "*"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
   },
   "devDependencies": {
-    "@testing-library/vue": "^6.4.2",
-    "@types/qrcode": "^1.4.2",
-    "@vue/compiler-sfc": "^3.4.21",
-    "@vue/test-utils": "^2.4.4"
+    "rimraf": "^3.0.2",
+    "vite": "^6.0.3"
   }
 }

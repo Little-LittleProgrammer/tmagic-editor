@@ -19,15 +19,15 @@
 import { beforeAll, describe, expect, test } from 'vitest';
 import { cloneDeep } from 'lodash-es';
 
-import type { MApp } from '@tmagic/schema';
-import { NodeType } from '@tmagic/schema';
+import type { MApp } from '@tmagic/core';
+import { NodeType } from '@tmagic/core';
 
 import editorService from '@editor/services/editor';
 import historyService from '@editor/services/history';
 import storageService from '@editor/services/storage';
-import { COPY_STORAGE_KEY, setConfig } from '@editor/utils';
+import { COPY_STORAGE_KEY, setEditorConfig } from '@editor/utils';
 
-setConfig({
+setEditorConfig({
   // eslint-disable-next-line no-eval
   parseDSL: (dsl: string) => eval(dsl),
 });
@@ -194,12 +194,12 @@ describe('select', () => {
     expect(page?.id).toBe(NodeId.PAGE_ID);
   });
 
-  test.skip('参数是id undefined', () => {
-    expect(() => editorService.select(NodeId.ERROR_NODE_ID)).toThrowError('获取不到组件信息');
+  test('参数是id undefined', () => {
+    expect(() => editorService.select(NodeId.ERROR_NODE_ID)).rejects.toThrowError('获取不到组件信息');
   });
 
-  test.skip('参数是config 没有id', () => {
-    expect(() => editorService.select({ id: '', type: 'text' })).toThrowError('没有ID，无法选中');
+  test('参数是config 没有id', () => {
+    expect(() => editorService.select({ id: '', type: 'text' })).rejects.toThrowError('没有ID，无法选中');
   });
 });
 
@@ -253,7 +253,7 @@ describe('add', () => {
     expect(rootNode?.items.length).toBe(2);
   });
 
-  test.skip('往root下添加普通节点', () => {
+  test('往root下添加普通节点', () => {
     editorService.set('root', cloneDeep(root));
     // 根节点下只能加页面
     const rootNode = editorService.get('root');
@@ -264,7 +264,7 @@ describe('add', () => {
         },
         rootNode,
       ),
-    ).toThrowError('app下不能添加组件');
+    ).rejects.toThrowError('app下不能添加组件');
   });
 });
 
@@ -293,8 +293,8 @@ describe('remove', () => {
     expect(rootNode?.items.length).toBe(1);
   });
 
-  test.skip('undefine', async () => {
-    expect(() => editorService.remove({ id: NodeId.ERROR_NODE_ID, type: 'text' })).toThrow();
+  test('undefine', async () => {
+    expect(() => editorService.remove({ id: NodeId.ERROR_NODE_ID, type: 'text' })).rejects.toThrow();
   });
 });
 

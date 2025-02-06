@@ -4,6 +4,8 @@
     class="m-editor-tree-node"
     :draggable="draggable"
     :data-node-id="data.id"
+    :data-parent-id="parent?.id"
+    :data-parents-id="parentsId"
     :data-is-container="Array.isArray(data.items)"
     @dragstart="handleDragStart"
     @dragleave="handleDragLeave"
@@ -40,8 +42,10 @@
         v-for="item in data.items"
         :key="item.id"
         :data="item"
+        :parent="data"
+        :parentsId="[...parentsId, data.id]"
         :node-status-map="nodeStatusMap"
-        :indent="indent + 11"
+        :indent="indent + nextLevelIndentIncrement"
       >
         <template #tree-node-content="{ data: nodeData }">
           <slot name="tree-node-content" :data="nodeData"> </slot>
@@ -61,7 +65,7 @@
 import { computed, inject } from 'vue';
 import { ArrowDown, ArrowRight } from '@element-plus/icons-vue';
 
-import type { Id } from '@tmagic/schema';
+import type { Id } from '@tmagic/core';
 
 import MIcon from '@editor/components/Icon.vue';
 import type { LayerNodeStatus, TreeNodeData } from '@editor/type';
@@ -91,11 +95,16 @@ const treeEmit = inject<typeof emit>('treeEmit');
 const props = withDefaults(
   defineProps<{
     data: TreeNodeData;
+    parent?: TreeNodeData;
+    parentsId?: Id[];
     nodeStatusMap: Map<Id, LayerNodeStatus>;
     indent?: number;
+    nextLevelIndentIncrement?: number;
   }>(),
   {
     indent: 0,
+    nextLevelIndentIncrement: 11,
+    parentsId: () => [],
   },
 );
 
@@ -114,7 +123,9 @@ const selected = computed(() => nodeStatus.value.selected);
 const visible = computed(() => nodeStatus.value.visible);
 const draggable = computed(() => nodeStatus.value.draggable);
 
-const hasChildren = computed(() => props.data.items?.some((item) => props.nodeStatusMap.get(item.id)?.visible));
+const hasChildren = computed(
+  () => Array.isArray(props.data.items) && props.data.items.some((item) => props.nodeStatusMap.get(item.id)?.visible),
+);
 
 const handleDragStart = (event: DragEvent) => {
   treeEmit?.('node-dragstart', event, props.data);

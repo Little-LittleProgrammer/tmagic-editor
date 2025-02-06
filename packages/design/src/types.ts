@@ -1,4 +1,5 @@
 import { ComputedRef, DefineComponent, Directive, Ref } from 'vue';
+import type { Placement } from '@popperjs/core';
 
 export type FieldSize = 'large' | 'default' | 'small';
 
@@ -29,6 +30,7 @@ export interface ButtonProps {
   size?: FieldSize;
   link?: boolean;
   text?: boolean;
+  circle?: boolean;
   icon?: any;
 }
 
@@ -44,7 +46,7 @@ export interface CascaderProps {
   disabled?: boolean;
   clearable?: boolean;
   filterable?: boolean;
-  options?: CascaderOption[];
+  options?: CascaderPropsOption[];
   size?: FieldSize;
   /** 弹出内容的自定义类名 */
   popperClass?: string;
@@ -105,6 +107,8 @@ export interface DatePickerProps {
   startPlaceholder?: string;
   endPlaceholder?: string;
   format?: string;
+  dateFormat?: string;
+  timeFormat?: string;
   /** 可选，绑定值的格式。 不指定则绑定值为 Date 对象 */
   valueFormat?: string;
   /** 在范围选择器里取消两个日期面板之间的联动 */
@@ -222,15 +226,14 @@ export interface PaginationProps {
 }
 
 export interface PopoverProps {
-  placement?: string;
+  placement?: Placement;
   width?: string | number;
-  title?: string;
-  trigger?: string;
-  effect?: string;
-  content?: string;
+  trigger?: 'hover' | 'click';
   disabled?: boolean;
+  visible?: boolean;
   popperClass?: string;
-  visible?: boolean | null;
+  tabindex?: number;
+  destroyOnClose?: boolean;
 }
 
 export interface RadioProps {
@@ -371,13 +374,17 @@ export interface UploadProps {
   disabled?: boolean;
 }
 
-export interface CascaderOption {
+export interface CascaderPropsOption {
   /** 指定选项的值为选项对象的某个属性值 */
   value: any;
   /** 指定选项标签为选项对象的某个属性值 */
   label: string;
   /** 指定选项的子选项为选项对象的某个属性值 */
-  children?: CascaderOption[];
+  children?: CascaderPropsOption[];
+}
+
+export interface IconProps {
+  size?: string;
 }
 
 export interface TMagicMessage {
@@ -526,8 +533,8 @@ export interface Components {
   };
 
   icon: {
-    component: DefineComponent<{}, {}, any> | string;
-    props: () => {};
+    component: DefineComponent<IconProps, {}, any> | string;
+    props: (props: IconProps) => IconProps;
   };
 
   input: {
@@ -563,11 +570,6 @@ export interface Components {
   pagination: {
     component: DefineComponent<PaginationProps, {}, any> | string;
     props: (props: PaginationProps) => PaginationProps;
-  };
-
-  popover: {
-    component: DefineComponent<PopoverProps, {}, any> | string;
-    props: (props: PopoverProps) => PopoverProps;
   };
 
   radio: {
@@ -706,7 +708,7 @@ export interface Components {
   };
 }
 
-export interface PluginOptions {
+export interface DesignPluginOptions {
   message?: TMagicMessage;
   messageBox?: TMagicMessageBox;
   components?: Components;

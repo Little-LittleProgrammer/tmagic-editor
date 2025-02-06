@@ -18,10 +18,22 @@
 
 import App from './App';
 
-export * from './events';
+export { cloneDeep } from 'lodash-es';
 
+export * from '@tmagic/data-source';
+export * from '@tmagic/dep';
+export * from '@tmagic/schema';
+export * from '@tmagic/utils';
+
+export { default as EventHelper } from './EventHelper';
+export * from './utils';
+
+export { type AppOptionsConfig } from './App';
 export { default as Env } from './Env';
 export { default as Page } from './Page';
 export { default as Node } from './Node';
+export { default as IteratorContainer } from './IteratorContainer';
+export { default as FlowState } from './FlowState';
+export { default as DevtoolApi } from './DevtoolApi';
 
 export default App;

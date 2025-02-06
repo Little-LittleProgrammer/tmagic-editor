@@ -18,33 +18,22 @@
 
 import { createApp } from 'vue';
 
-import Core from '@tmagic/core';
-import { DataSourceManager } from '@tmagic/data-source';
+import TMagicApp, { DataSourceManager, DeepObservedData } from '@tmagic/core';
 
 import App from './App.vue';
 
-import '@tmagic/utils/resetcss.css';
+import '@tmagic/core/resetcss.css';
+
+DataSourceManager.registerObservedData(DeepObservedData);
 
 Promise.all([
   import('../.tmagic/comp-entry'),
   import('../.tmagic/plugin-entry'),
   import('../.tmagic/datasource-entry'),
-]).then(([components, plugins, datasources]) => {
-  const magicApp = createApp(App);
+]).then(([components, plugins, dataSources]) => {
+  const vueApp = createApp(App);
 
-  Object.entries(components.default).forEach(([type, component]: [string, any]) => {
-    magicApp.component(`magic-ui-${type}`, component);
-  });
-
-  Object.entries(datasources).forEach(([type, ds]: [string, any]) => {
-    DataSourceManager.registe(type, ds);
-  });
-
-  Object.values(plugins.default).forEach((plugin: any) => {
-    magicApp.use(plugin);
-  });
-
-  const app = new Core({
+  const app = new TMagicApp({
     ua: window.navigator.userAgent,
     platform: 'editor',
   });
@@ -53,9 +42,21 @@ Promise.all([
     app.setDesignWidth(window.document.documentElement.getBoundingClientRect().width);
   }
 
-  window.appInstance = app;
-  magicApp.config.globalProperties.app = app;
-  magicApp.provide('app', app);
+  Object.entries(components.default).forEach(([type, component]: [string, any]) => {
+    app.registerComponent(type, component);
+  });
 
-  magicApp.mount('#app');
+  Object.entries(dataSources.default).forEach(([type, ds]: [string, any]) => {
+    DataSourceManager.register(type, ds);
+  });
+
+  Object.values(plugins.default).forEach((plugin: any) => {
+    vueApp.use(plugin, { app });
+  });
+
+  window.appInstance = app;
+  vueApp.config.globalProperties.app = app;
+  vueApp.provide('app', app);
+
+  vueApp.mount('#app');
 });

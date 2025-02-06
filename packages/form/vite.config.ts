@@ -16,8 +16,6 @@
  * limitations under the License.
  */
 
-import path from 'path';
-
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 
@@ -25,16 +23,6 @@ import pkg from './package.json';
 
 export default defineConfig({
   plugins: [vue()],
-
-  resolve: {
-    alias:
-      process.env.NODE_ENV === 'production'
-        ? []
-        : [
-            { find: /^@tmagic\/utils/, replacement: path.join(__dirname, '../utils/src/index.ts') },
-            { find: /^@tmagic\/design/, replacement: path.join(__dirname, '../design/src/index.ts') },
-          ],
-  },
 
   build: {
     cssCodeSplit: false,
@@ -46,17 +34,16 @@ export default defineConfig({
       entry: 'src/index.ts',
       name: 'TMagicForm',
       fileName: 'tmagic-form',
+      cssFileName: 'style',
     },
 
     rollupOptions: {
       // 确保外部化处理那些你不想打包进库的依赖
       external(id: string) {
-        return (
-          /^vue/.test(id) ||
-          /^element-plus/.test(id) ||
-          /^@tmagic\//.test(id) ||
-          Object.keys(pkg.dependencies).some((k) => new RegExp(`^${k}`).test(id))
-        );
+        return Object.keys({
+          ...pkg.dependencies,
+          ...pkg.peerDependencies,
+        }).some((k) => new RegExp(`^${k}`).test(id));
       },
 
       output: {

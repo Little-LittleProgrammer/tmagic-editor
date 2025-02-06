@@ -29,6 +29,7 @@ import BaseService from './BaseService';
 const state = reactive<UiState>({
   uiSelectMode: false,
   showSrc: false,
+  showStylePanel: true,
   zoom: 1,
   stageContainerRect: {
     width: 0,
@@ -47,7 +48,9 @@ const state = reactive<UiState>({
   showRule: true,
   propsPanelSize: 'small',
   showAddPageButton: true,
+  showPageListButton: true,
   hideSlideBar: false,
+  sideBarItems: [],
   navMenuRect: {
     left: 0,
     top: 0,

@@ -17,23 +17,19 @@
  */
 
 import React from 'react';
-import ReactDOM from 'react-dom';
-import { cloneDeep } from 'lodash-es';
+import { createRoot } from 'react-dom/client';
 
 import Core from '@tmagic/core';
-import { DataSourceManager } from '@tmagic/data-source';
-import type { MApp } from '@tmagic/schema';
-import type { RemoveData, SortEventData, UpdateData } from '@tmagic/stage';
-import { AppContent } from '@tmagic/ui-react';
-import { replaceChildNode } from '@tmagic/utils';
+import { DataSourceManager, DeepObservedData } from '@tmagic/data-source';
+import { AppContent, useEditorDsl } from '@tmagic/react-runtime-help';
 
 import components from '../.tmagic/comp-entry';
-import datasources from '../.tmagic/datasource-entry';
+import dataSources from '../.tmagic/datasource-entry';
 import plugins from '../.tmagic/plugin-entry';
 
 import App from './App';
 
-import '@tmagic/utils/resetcss.css';
+import '@tmagic/core/resetcss.css';
 
 declare global {
   interface Window {
@@ -41,8 +37,10 @@ declare global {
   }
 }
 
-Object.entries(datasources).forEach(([type, ds]: [string, any]) => {
-  DataSourceManager.registe(type, ds);
+DataSourceManager.registerObservedData(DeepObservedData);
+
+Object.entries(dataSources).forEach(([type, ds]: [string, any]) => {
+  DataSourceManager.register(type, ds);
 });
 
 const app = new Core({
@@ -56,21 +54,15 @@ if (app.env.isWeb) {
 
 window.appInstance = app;
 
-let curPageId = '';
-
-const updateConfig = (root: MApp) => {
-  app?.setConfig(root, curPageId);
-  renderDom();
-};
+const root = createRoot(document.getElementById('root')!);
 
 const renderDom = () => {
-  ReactDOM.render(
+  root.render(
     <React.StrictMode>
       <AppContent.Provider value={app}>
         <App />
       </AppContent.Provider>
     </React.StrictMode>,
-    document.getElementById('root'),
   );
 
   setTimeout(() => {
@@ -79,59 +71,10 @@ const renderDom = () => {
   });
 };
 
-const operations = {
-  getApp() {
-    return app;
-  },
-
-  updateRootConfig(root: MApp) {
-    app?.setConfig(root);
-  },
-
-  updatePageId(id: string) {
-    curPageId = id;
-    app?.setPage(curPageId);
-    renderDom();
-  },
-
-  getSnapElementQuerySelector() {
-    return '[class*=magic-ui][id]';
-  },
-
-  select(id: string) {
-    const el = document.getElementById(id);
-    if (el) return el;
-    // 未在当前文档下找到目标元素，可能是还未渲染，等待渲染完成后再尝试获取
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(document.getElementById(id));
-      }, 0);
-    });
-  },
-
-  add({ root }: UpdateData) {
-    updateConfig(root);
-  },
-
-  update({ config, root }: UpdateData) {
-    replaceChildNode(app.dataSourceManager?.compiledNode(config, undefined, true) || config, root.items);
-    updateConfig(cloneDeep(root));
-  },
-
-  sortNode({ root }: SortEventData) {
-    root && updateConfig(root);
-  },
-
-  remove({ root }: RemoveData) {
-    updateConfig(root);
-  },
-};
-
 Object.keys(components).forEach((type: string) => app.registerComponent(type, components[type]));
 
 Object.values(plugins).forEach((plugin: any) => {
-  plugin.install(app);
+  plugin.install({ app });
 });
 
-// @ts-ignore
-window.magic?.onRuntimeReady(operations);
+useEditorDsl(app, renderDom);

@@ -1,7 +1,8 @@
-import { computed, type ComputedRef, nextTick, type Ref, ref } from 'vue';
+import { computed, type ComputedRef, nextTick, type Ref, useTemplateRef } from 'vue';
 import { throttle } from 'lodash-es';
 
-import { Id, MNode } from '@tmagic/schema';
+import { Id, MNode } from '@tmagic/core';
+import { isPage, isPageFragment } from '@tmagic/utils';
 
 import { LayerNodeStatus, Services, TreeNodeData, UI_SELECT_MODE_EVENT_NAME } from '@editor/type';
 import { updateStatus } from '@editor/utils/tree';
@@ -31,6 +32,10 @@ export const useClick = (
   };
 
   const multiSelect = async (data: MNode) => {
+    if (isPage(data) || isPageFragment(data)) {
+      return;
+    }
+
     const nodes = services?.editorService.get('nodes') || [];
 
     const newNodes: Id[] = [];
@@ -38,6 +43,10 @@ export const useClick = (
     nodes.forEach((node) => {
       if (node.id === data.id) {
         isCancel = true;
+        return;
+      }
+
+      if (isPage(node) || isPageFragment(node)) {
         return;
       }
 
@@ -56,9 +65,12 @@ export const useClick = (
 
   const throttleTime = 300;
   // 鼠标在组件树移动触发高亮
-  const highlightHandler = throttle((event: MouseEvent, data: TreeNodeData) => {
-    highlight(data);
-  }, throttleTime);
+  const highlightHandler: (event: MouseEvent, data: TreeNodeData) => void = throttle(
+    (event: MouseEvent, data: TreeNodeData) => {
+      highlight(data);
+    },
+    throttleTime,
+  );
 
   // 触发画布高亮
   const highlight = (data: TreeNodeData) => {
@@ -67,7 +79,7 @@ export const useClick = (
     services?.stageOverlayService?.get('stage')?.highlight(data.id);
   };
 
-  const nodeClickHandler = (event: MouseEvent, data: TreeNodeData) => {
+  const nodeClickHandler = (event: MouseEvent, data: TreeNodeData): void => {
     if (!nodeStatusMap?.value) return;
 
     if (services?.uiService.get('uiSelectMode')) {
@@ -87,14 +99,14 @@ export const useClick = (
   };
 
   // 右键菜单
-  const menu = ref<InstanceType<typeof LayerMenu>>();
+  const menu = useTemplateRef<InstanceType<typeof LayerMenu>>('menu');
 
   return {
     menu,
 
     nodeClickHandler,
 
-    nodeContentMenuHandler(event: MouseEvent, data: TreeNodeData) {
+    nodeContentMenuHandler(event: MouseEvent, data: TreeNodeData): void {
       event.preventDefault();
 
       const nodes = services?.editorService.get('nodes') || [];

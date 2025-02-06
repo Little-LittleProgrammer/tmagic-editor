@@ -9,7 +9,7 @@
           :size="size"
           @change="keyChangeHandler"
         ></TMagicInput>
-        <span class="m-fileds-key-value-delimiter">:</span>
+        <span class="m-fields-key-value-delimiter">:</span>
         <TMagicInput
           placeholder="value"
           v-model="records[index][1]"
@@ -19,7 +19,7 @@
         ></TMagicInput>
 
         <TMagicButton
-          class="m-fileds-key-value-delete"
+          class="m-fields-key-value-delete"
           type="danger"
           :size="size"
           :disabled="disabled"
@@ -39,7 +39,7 @@
       v-if="config.advanced && showCode"
       height="200px"
       :init-values="model[name]"
-      language="json"
+      language="javascript"
       :options="{
         readOnly: disabled,
       }"
@@ -86,22 +86,27 @@ const props = withDefaults(
   },
 );
 
-const emit = defineEmits<(e: 'change', value: Record<string, any>) => void>();
+const emit = defineEmits<{
+  change: [value: Record<string, any>];
+}>();
 
 const records = ref<[string, string][]>([]);
 const showCode = ref(false);
 
 watchEffect(() => {
-  const initValues: [string, any][] = Object.entries(props.model[props.name] || {});
+  if (typeof props.model[props.name] === 'function') {
+    showCode.value = true;
+  } else {
+    const initValues: [string, any][] = Object.entries(props.model[props.name] || {});
 
-  for (const [, value] of initValues) {
-    if (typeof value !== 'string') {
-      showCode.value = true;
-      break;
+    for (const [, value] of initValues) {
+      if (typeof value !== 'string') {
+        showCode.value = true;
+        break;
+      }
     }
+    records.value = initValues;
   }
-
-  records.value = initValues;
 });
 
 const getValue = () => {

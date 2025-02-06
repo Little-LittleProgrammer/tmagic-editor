@@ -11,8 +11,6 @@
     </slot>
 
     <SplitView
-      v-loading="stageLoading"
-      element-loading-text="Runtime 加载中..."
       v-else
       ref="splitView"
       class="m-editor-content"
@@ -22,7 +20,7 @@
       v-model:left="columnWidth.left"
       v-model:right="columnWidth.right"
       :min-left="65"
-      :min-right="20"
+      :min-right="420"
       :min-center="100"
       :width="frameworkRect?.width || 0"
       @change="columnWidthChange"
@@ -38,17 +36,21 @@
         </slot>
 
         <slot name="page-bar">
-          <PageBar :disabled-page-fragment="disabledPageFragment">
+          <PageBar
+            :disabled-page-fragment="disabledPageFragment"
+            :page-bar-sort-options="pageBarSortOptions"
+            :filter-function="pageFilterFunction"
+          >
+            <template #page-bar-add-button><slot name="page-bar-add-button"></slot></template>
             <template #page-bar-title="{ page }"><slot name="page-bar-title" :page="page"></slot></template>
             <template #page-bar-popover="{ page }"><slot name="page-bar-popover" :page="page"></slot></template>
+            <template #page-list-popover="{ list }"><slot name="page-list-popover" :list="list"></slot></template>
           </PageBar>
         </slot>
       </template>
 
       <template v-if="page" #right>
-        <TMagicScrollbar>
-          <slot name="props-panel"></slot>
-        </TMagicScrollbar>
+        <slot name="props-panel"></slot>
       </template>
     </SplitView>
 
@@ -58,13 +60,13 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 
-import { TMagicScrollbar } from '@tmagic/design';
+import type { MPage, MPageFragment } from '@tmagic/core';
 
 import SplitView from '@editor/components/SplitView.vue';
-import type { FrameworkSlots, GetColumnWidth, Services } from '@editor/type';
-import { getConfig } from '@editor/utils/config';
+import type { FrameworkSlots, GetColumnWidth, PageBarSortOptions, Services } from '@editor/type';
+import { getEditorConfig } from '@editor/utils/config';
 
 import PageBar from './page-bar/PageBar.vue';
 import AddPageBox from './AddPageBox.vue';
@@ -78,6 +80,8 @@ defineOptions({
 
 defineProps<{
   disabledPageFragment: boolean;
+  pageBarSortOptions?: PageBarSortOptions;
+  pageFilterFunction?: (page: MPage | MPageFragment, keyword: string) => boolean;
 }>();
 
 const DEFAULT_LEFT_COLUMN_WIDTH = 310;
@@ -86,14 +90,13 @@ const DEFAULT_RIGHT_COLUMN_WIDTH = 480;
 const codeOptions = inject('codeOptions', {});
 const { editorService, uiService } = inject<Services>('services') || {};
 
-const content = ref<HTMLDivElement>();
-const splitView = ref<InstanceType<typeof SplitView>>();
+const content = useTemplateRef<HTMLDivElement>('content');
+const splitView = useTemplateRef<InstanceType<typeof SplitView>>('splitView');
 
 const root = computed(() => editorService?.get('root'));
 const page = computed(() => editorService?.get('page'));
 
 const pageLength = computed(() => editorService?.get('pageLength') || 0);
-const stageLoading = computed(() => editorService?.get('stageLoading') || false);
 const showSrc = computed(() => uiService?.get('showSrc'));
 
 const LEFT_COLUMN_WIDTH_STORAGE_KEY = '$MagicEditorLeftColumnWidthData';
@@ -102,10 +105,13 @@ const RIGHT_COLUMN_WIDTH_STORAGE_KEY = '$MagicEditorRightColumnWidthData';
 const getLeftColumnWidthCacheData = () =>
   Number(globalThis.localStorage.getItem(LEFT_COLUMN_WIDTH_STORAGE_KEY)) || DEFAULT_LEFT_COLUMN_WIDTH;
 
+const getRightColumnWidthCacheData = () =>
+  Number(globalThis.localStorage.getItem(RIGHT_COLUMN_WIDTH_STORAGE_KEY)) || DEFAULT_RIGHT_COLUMN_WIDTH;
+
 const columnWidth = ref<Partial<GetColumnWidth>>({
   left: getLeftColumnWidthCacheData(),
   center: 0,
-  right: Number(globalThis.localStorage.getItem(RIGHT_COLUMN_WIDTH_STORAGE_KEY)) || DEFAULT_RIGHT_COLUMN_WIDTH,
+  right: getRightColumnWidthCacheData(),
 });
 
 watch(pageLength, () => {
@@ -151,7 +157,7 @@ onBeforeUnmount(() => {
 
 const saveCode = (value: string) => {
   try {
-    const parseDSL = getConfig('parseDSL');
+    const parseDSL = getEditorConfig('parseDSL');
     editorService?.set('root', parseDSL(value));
   } catch (e: any) {
     console.error(e);
