@@ -1,3 +1,6 @@
+/**
+ * 移动端适配方案
+ */
 export default class Flexible {
   public designWidth = 375;
   private tid: NodeJS.Timeout | undefined;

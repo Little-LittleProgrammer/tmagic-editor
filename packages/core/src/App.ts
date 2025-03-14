@@ -50,17 +50,17 @@ export interface AppOptionsConfig {
 class App extends EventEmitter {
   [x: string]: any;
   public env: Env = new Env();
-  public dsl?: MApp;
-  public codeDsl?: CodeBlockDSL;
-  public dataSourceManager?: DataSourceManager;
-  public page?: Page;
+  public dsl?: MApp; // dsl根节点
+  public codeDsl?: CodeBlockDSL; // 代码块 dsl,可执行方法
+  public dataSourceManager?: DataSourceManager; // 数据源管理器
+  public page?: Page; // 当前激活页面
   public useMock = false;
   public platform = 'mobile';
   public jsEngine: JsEngine = 'browser';
-  public components = new Map();
-  public pageFragmentContainerType = new Set(['page-fragment-container']);
-  public iteratorContainerType = new Set(['iterator-container']);
-  public request?: RequestFunction;
+  public components = new Map(); // 组件注册map。由 runtime 调用
+  public pageFragmentContainerType = new Set(['page-fragment-container']); // 页面片容器
+  public iteratorContainerType = new Set(['iterator-container']); // 迭代器容器
+  public request?: RequestFunction; // 自定义请求方法，用于 datasource type 为 http 的数据源
   public transformStyle: (style: Record<string, any>) => Record<string, any>;
   public eventHelper?: EventHelper;
 
