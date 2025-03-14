@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { reactive } from 'vue';
+import { reactive, shallowReactive } from 'vue';
 
 import type { DepExtendedData, Id, MNode, Target, TargetNode } from '@tmagic/core';
 import { DepTargetType, Watcher } from '@tmagic/core';
@@ -29,6 +29,7 @@ export interface DepEvents {
   'add-target': [target: Target];
   'remove-target': [id: string | number];
   collected: [nodes: MNode[], deep: boolean];
+  'ds-collected': [nodes: MNode[], deep: boolean];
 }
 
 interface State {
@@ -40,7 +41,7 @@ type StateKey = keyof State;
 const idleTask = new IdleTask<{ node: TargetNode; deep: boolean; target: Target }>();
 
 class Dep extends BaseService {
-  private state = reactive<State>({
+  private state = shallowReactive<State>({
     collecting: false,
   });
 
@@ -96,6 +97,7 @@ class Dep extends BaseService {
     this.set('collecting', false);
 
     this.emit('collected', nodes, deep);
+    this.emit('ds-collected', nodes, deep);
   }
 
   public collectIdle(nodes: MNode[], depExtendedData: DepExtendedData = {}, deep = false, type?: DepTargetType) {
@@ -117,6 +119,9 @@ class Dep extends BaseService {
       idleTask.once('finish', () => {
         this.emit('collected', nodes, deep);
         this.set('collecting', false);
+      });
+      idleTask.once('hight-level-finish', () => {
+        this.emit('ds-collected', nodes, deep);
         resolve();
       });
     });
@@ -125,11 +130,11 @@ class Dep extends BaseService {
   public collectNode(node: MNode, target: Target, depExtendedData: DepExtendedData = {}, deep = false) {
     // 先删除原有依赖，重新收集
     if (isPage(node)) {
-      Object.entries(target.deps).forEach(([depKey, dep]) => {
+      for (const [depKey, dep] of Object.entries(target.deps)) {
         if (dep.data?.pageId && dep.data.pageId === depExtendedData.pageId) {
           delete target.deps[depKey];
         }
-      });
+      }
     } else {
       this.watcher.removeTargetDep(target, node);
     }
@@ -171,6 +176,23 @@ class Dep extends BaseService {
     return super.once(eventName, listener as any);
   }
 
+  public reset() {
+    idleTask.removeAllListeners();
+    idleTask.clearTasks();
+
+    for (const type of Object.keys(this.watcher.getTargetsList())) {
+      this.removeTargets(type);
+    }
+
+    this.set('collecting', false);
+  }
+
+  public destroy() {
+    this.removeAllListeners();
+    this.reset();
+    this.removeAllPlugins();
+  }
+
   public emit<Name extends keyof DepEvents, Param extends DepEvents[Name]>(eventName: Name, ...args: Param) {
     return super.emit(eventName, ...args);
   }
@@ -185,6 +207,7 @@ class Dep extends BaseService {
         deep: false,
         target,
       },
+      target.type === DepTargetType.DATA_SOURCE,
     );
 
     if (deep && Array.isArray(node.items) && node.items.length) {

@@ -1,5 +1,5 @@
 <template>
-  <div class="m-editor-props-panel" v-show="nodes.length === 1">
+  <div ref="propsPanel" class="m-editor-props-panel" v-show="nodes.length === 1">
     <slot name="props-panel-header"></slot>
     <FormPanel
       ref="propertyFormPanel"
@@ -14,6 +14,8 @@
       @form-error="errorHandler"
       @mounted="mountedHandler"
     ></FormPanel>
+
+    <Resizer v-if="showStylePanel" @change="widthChange"></Resizer>
 
     <FormPanel
       v-if="showStylePanel"
@@ -53,12 +55,15 @@
 <script lang="ts" setup>
 import { computed, inject, onBeforeUnmount, ref, useTemplateRef, watchEffect } from 'vue';
 import { Close, Sugar } from '@element-plus/icons-vue';
+import type { OnDrag } from 'gesto';
 
-import type { MNode } from '@tmagic/core';
+import { type MNode } from '@tmagic/core';
 import { TMagicButton } from '@tmagic/design';
 import type { ContainerChangeEventData, FormState, FormValue } from '@tmagic/form';
+import { setValueByKeyPath } from '@tmagic/utils';
 
 import MIcon from '@editor/components/Icon.vue';
+import Resizer from '@editor/components/Resizer.vue';
 import type { PropsPanelSlots, Services } from '@editor/type';
 import { styleTabConfig } from '@editor/utils';
 
@@ -120,7 +125,27 @@ const submit = async (v: MNode, eventData?: ContainerChangeEventData) => {
     if (!v.id) {
       v.id = values.value.id;
     }
-    services?.editorService.update(v, { changeRecords: eventData?.changeRecords });
+
+    const newValue: MNode = {
+      ...v,
+      style: {},
+    };
+
+    if (v.style) {
+      Object.entries(v.style).forEach(([key, value]) => {
+        if (value !== '' && newValue.style) {
+          newValue.style[key] = value;
+        }
+      });
+
+      eventData?.changeRecords?.forEach((record) => {
+        if (record.propPath?.startsWith('style') && record.value === '') {
+          setValueByKeyPath(record.propPath, record.value, newValue);
+        }
+      });
+    }
+
+    services?.editorService.update(newValue, { changeRecords: eventData?.changeRecords });
   } catch (e: any) {
     emit('submit-error', e);
   }
@@ -130,8 +155,22 @@ const errorHandler = (e: any) => {
   emit('form-error', e);
 };
 
-const mountedHandler = (e: InstanceType<typeof FormPanel>) => {
-  emit('mounted', e);
+const mountedHandler = () => {
+  if (propertyFormPanelRef.value) {
+    emit('mounted', propertyFormPanelRef.value);
+  }
+};
+
+const propsPanelEl = useTemplateRef('propsPanel');
+const widthChange = ({ deltaX }: OnDrag) => {
+  if (!propsPanelEl.value) {
+    return;
+  }
+
+  const width = globalThis.parseFloat(
+    getComputedStyle(propsPanelEl.value).getPropertyValue('--props-style-panel-width'),
+  );
+  propsPanelEl.value.style.setProperty('--props-style-panel-width', `${width - deltaX}px`);
 };
 
 const { showStylePanel, showStylePanelHandler, closeStylePanelHandler } = useStylePanel(services);

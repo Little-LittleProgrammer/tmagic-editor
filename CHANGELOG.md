@@ -1,3 +1,41 @@
+## [1.5.5](https://github.com/Tencent/tmagic-editor/compare/v1.5.4...v1.5.5) (2025-01-14)
+
+
+### Features
+
+* **dep:** 性能优化，收集时节点配置中id与name不需要做判断 ([b215062](https://github.com/Tencent/tmagic-editor/commit/b215062177a607ae53e9ef10ffad092f4f506f82))
+* **editor:** 优化依赖收集，数据源代码块分开收集 ([040b787](https://github.com/Tencent/tmagic-editor/commit/040b787e8f138759e2acfed4071ffa7cf70eea59))
+
+
+
+## [1.5.4](https://github.com/Tencent/tmagic-editor/compare/v1.5.3...v1.5.4) (2025-01-10)
+
+
+### Bug Fixes
+
+* **element-plus-adapter:** 只有当前没注册loading指令时才注册 ([8b12016](https://github.com/Tencent/tmagic-editor/commit/8b1201626dd2ff410e919da2baec58b0c332303d))
+* **element-plus-adapter:** 增加loading指令 ([1bcefdb](https://github.com/Tencent/tmagic-editor/commit/1bcefdb1e8ca851bdd322de860546a906298b02b))
+
+
+
+## [1.5.3](https://github.com/Tencent/tmagic-editor/compare/v1.5.2...v1.5.3) (2025-01-06)
+
+
+### Bug Fixes
+
+* **core:** 公共点击事件在非浏览器环境不执行 ([ec94eed](https://github.com/Tencent/tmagic-editor/commit/ec94eed7871e71136d9d3fcfb561e76048259f1e))
+* **editor:** select配置项无法清空 ([833dbcd](https://github.com/Tencent/tmagic-editor/commit/833dbcd8b4c3b5143d0d1c1962c6d69dfa4404d3))
+
+
+### Features
+
+* **editor,form,schema:** 组件样式配置可视化 ([246e694](https://github.com/Tencent/tmagic-editor/commit/246e6941d565010a069376020c451eb63deb50bd))
+* **editor:** 样式配置面板支持拖动大小 ([e8bbdf6](https://github.com/Tencent/tmagic-editor/commit/e8bbdf613b2a36313b5cd6bd9df5d68d1f1a45d3))
+* **editor:** 配置组件时将样式中的空配置移除 ([7b0a476](https://github.com/Tencent/tmagic-editor/commit/7b0a476677c36f606c63825f99df7d2537fffa8d))
+* **form:** groupList支持复制单条记录，支持移动单条记得到指定位置，table支持复制单条记录 ([a831413](https://github.com/Tencent/tmagic-editor/commit/a831413151f1006811e160796404f06f1f353bc6))
+
+
+
 ## [1.5.2](https://github.com/Tencent/tmagic-editor/compare/v1.5.1...v1.5.2) (2024-12-18)
 
 
