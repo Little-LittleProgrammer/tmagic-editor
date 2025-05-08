@@ -59,7 +59,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, Ref, ref, useTemplateRef } from 'vue';
+import { computed, inject, nextTick, Ref, ref, useTemplateRef, watch } from 'vue';
 
 import type { CodeBlockContent } from '@tmagic/core';
 import { TMagicButton, TMagicDialog, tMagicMessage, tMagicMessageBox, TMagicTag } from '@tmagic/design';
@@ -74,9 +74,9 @@ import {
 import FloatingBox from '@editor/components/FloatingBox.vue';
 import { useEditorContentHeight } from '@editor/hooks/use-editor-content-height';
 import { useNextFloatBoxPosition } from '@editor/hooks/use-next-float-box-position';
+import { useServices } from '@editor/hooks/use-services';
 import { useWindowRect } from '@editor/hooks/use-window-rect';
 import CodeEditor from '@editor/layouts/CodeEditor.vue';
-import type { Services } from '@editor/type';
 import { getEditorConfig } from '@editor/utils/config';
 
 defineOptions({
@@ -95,23 +95,25 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   submit: [values: CodeBlockContent, eventData: ContainerChangeEventData];
+  close: [];
+  open: [];
 }>();
 
-const services = inject<Services>('services');
+const { codeBlockService, uiService } = useServices();
 
 const { height: codeBlockEditorHeight } = useEditorContentHeight();
 
 const difVisible = ref(false);
 const { rect: windowRect } = useWindowRect();
 
-const magicVsEditor = useTemplateRef<InstanceType<typeof CodeEditor>>('magicVsEditor');
+const magicVsEditorRef = useTemplateRef<InstanceType<typeof CodeEditor>>('magicVsEditor');
 
 const diffChange = () => {
-  if (!magicVsEditor.value || !formBox.value?.form) {
+  if (!magicVsEditorRef.value || !formBox.value?.form) {
     return;
   }
 
-  formBox.value.form.values.content = magicVsEditor.value.getEditorValue();
+  formBox.value.form.values.content = magicVsEditorRef.value.getEditorValue();
 
   difVisible.value = false;
 };
@@ -192,7 +194,7 @@ const functionConfig = computed<FormConfig>(() => [
         label: '描述',
         name: 'extra',
       },
-      services?.codeBlockService.getParamsColConfig() || defaultParamColConfig,
+      codeBlockService.getParamsColConfig() || defaultParamColConfig,
     ],
   },
   {
@@ -231,7 +233,7 @@ const changeHandler = (values: CodeBlockContent) => {
   changedValue.value = values;
 };
 
-const beforeClose = (done: (cancel?: boolean) => void) => {
+const beforeClose = (done: (_cancel?: boolean) => void) => {
   if (!changedValue.value) {
     done();
     return;
@@ -259,7 +261,17 @@ const closedHandler = () => {
 };
 
 const parentFloating = inject<Ref<HTMLDivElement | null>>('parentFloating', ref(null));
-const { boxPosition, calcBoxPosition } = useNextFloatBoxPosition(services?.uiService, parentFloating);
+const { boxPosition, calcBoxPosition } = useNextFloatBoxPosition(uiService, parentFloating);
+
+watch(boxVisible, (visible) => {
+  nextTick(() => {
+    if (!visible) {
+      emit('close');
+    } else {
+      emit('open');
+    }
+  });
+});
 
 defineExpose({
   async show() {

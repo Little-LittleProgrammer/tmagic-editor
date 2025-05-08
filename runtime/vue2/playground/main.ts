@@ -19,6 +19,7 @@
 import Vue from 'vue';
 
 import TMagicApp, { DataSourceManager, DeepObservedData } from '@tmagic/core';
+import type { UserRenderFunctionOptions } from '@tmagic/vue-runtime-help';
 
 import App from './App.vue';
 
@@ -61,6 +62,8 @@ Promise.all([
     render: (h) => h(App),
     provide: {
       app,
+      userRender: ({ h, type, props, attrs, style, className }: UserRenderFunctionOptions) =>
+        h(type, { props, attrs, style, class: className }),
     },
     el: '#app',
   });

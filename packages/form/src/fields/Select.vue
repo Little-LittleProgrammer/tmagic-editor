@@ -21,7 +21,7 @@
   >
     <template v-if="config.group">
       <component
-        v-for="(group, index) in (options as SelectGroupOption[])"
+        v-for="(group, index) in options as SelectGroupOption[]"
         :key="index"
         :is="optionGroupComponent?.component || 'el-option-group'"
         v-bind="
@@ -55,7 +55,7 @@
     </template>
     <template v-else>
       <component
-        v-for="option in (options as SelectOption[])"
+        v-for="option in options as SelectOption[]"
         class="tmagic-design-option"
         :key="config.valueKey ? option.value[config.valueKey] : option.value"
         :is="optionComponent?.component || 'el-option'"
@@ -191,6 +191,9 @@ const getOptions = async () => {
     postOptions = option.beforeRequest(mForm, postOptions, {
       model: props.model,
       formValue: mForm?.values,
+      formValues: mForm?.values,
+      prop: props.prop,
+      config: props.config,
     });
   }
 
@@ -206,6 +209,7 @@ const getOptions = async () => {
       formValue: mForm?.values,
       formValues: mForm?.values,
       config: props.config,
+      prop: props.prop,
       postOptions,
     });
   }
@@ -315,6 +319,9 @@ const getInitOption = async () => {
     postOptions = option.beforeInitRequest(mForm, postOptions, {
       model: props.model,
       formValue: mForm?.values,
+      formValues: mForm?.values,
+      config: props.config,
+      prop: props.prop,
     });
   }
 
@@ -331,6 +338,7 @@ const getInitOption = async () => {
       formValue: mForm?.values,
       formValues: mForm?.values,
       config: props.config,
+      prop: props.prop,
       postOptions,
     });
   }

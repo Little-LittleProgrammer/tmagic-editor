@@ -51,12 +51,12 @@ import { MForm } from '@tmagic/form';
 
 import MIcon from '@editor/components/Icon.vue';
 import { useEditorContentHeight } from '@editor/hooks/use-editor-content-height';
-import type { Services } from '@editor/type';
+import { useServices } from '@editor/hooks/use-services';
 
 import CodeEditor from '../CodeEditor.vue';
 
 defineSlots<{
-  'props-form-panel-header'(props: {}): any;
+  'props-form-panel-header'(_props: {}): any;
 }>();
 
 defineOptions({
@@ -70,7 +70,7 @@ const props = defineProps<{
   labelWidth?: string;
   codeValueKey?: string;
   labelPosition?: string;
-  extendState?: (state: FormState) => Record<string, any> | Promise<Record<string, any>>;
+  extendState?: (_state: FormState) => Record<string, any> | Promise<Record<string, any>>;
 }>();
 
 const emit = defineEmits<{
@@ -80,31 +80,33 @@ const emit = defineEmits<{
   mounted: [internalInstance: any];
 }>();
 
-const services = inject<Services>('services');
+const services = useServices();
+const { editorService, uiService } = services;
+
 const codeOptions = inject('codeOptions', {});
 
 const showSrc = ref(false);
-const propsPanelSize = computed(() => services?.uiService.get('propsPanelSize') || 'small');
+const propsPanelSize = computed(() => uiService.get('propsPanelSize') || 'small');
 const { height: editorContentHeight } = useEditorContentHeight();
-const stage = computed(() => services?.editorService.get('stage'));
+const stage = computed(() => editorService.get('stage'));
 
-const configForm = useTemplateRef<InstanceType<typeof MForm>>('configForm');
+const configFormRef = useTemplateRef<InstanceType<typeof MForm>>('configForm');
 
 watchEffect(() => {
-  if (configForm.value) {
-    configForm.value.formState.stage = stage.value;
-    configForm.value.formState.services = services;
+  if (configFormRef.value) {
+    configFormRef.value.formState.stage = stage.value;
+    configFormRef.value.formState.services = services;
   }
 });
 
 const internalInstance = getCurrentInstance();
 onMounted(() => {
-  emit('mounted', internalInstance);
+  emit('mounted', internalInstance?.proxy);
 });
 
 const submit = async (v: FormValue, eventData: ContainerChangeEventData) => {
   try {
-    const values = await configForm.value?.submitForm();
+    const values = await configFormRef.value?.submitForm();
     emit('submit', values, eventData);
   } catch (e: any) {
     emit('submit-error', e);
@@ -119,5 +121,5 @@ const saveCode = (values: any) => {
   emit('submit', props.codeValueKey ? { [props.codeValueKey]: values } : values);
 };
 
-defineExpose({ configForm, submit });
+defineExpose({ configForm: configFormRef, submit });
 </script>

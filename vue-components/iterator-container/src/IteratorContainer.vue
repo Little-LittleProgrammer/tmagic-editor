@@ -1,21 +1,31 @@
 <template>
-  <div>
-    <component
-      :is="containerComponent"
+  <div @click="clickHandler">
+    <IteratorItem
       v-for="(item, index) in configs"
-      :iterator-index="[...(iteratorIndex || []), index]"
-      :iterator-container-id="[...(iteratorContainerId || []), config.id]"
       :key="index"
       :config="item"
-    ></component>
+      :iterator-index="[...(iteratorIndex || []), index]"
+      :iterator-container-id="
+        config.id ? [...(iteratorContainerId || []), config.id] : [...(iteratorContainerId || [])]
+      "
+    ></IteratorItem>
   </div>
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, type PropType, watch } from 'vue-demi';
+import { computed, defineComponent, inject, type PropType, watch } from 'vue-demi';
 
-import type { Id, IteratorContainer as TMagicIteratorContainer, MIteratorContainer, MNode } from '@tmagic/core';
-import { useApp, useComponent } from '@tmagic/vue-runtime-help';
+import type TMagicApp from '@tmagic/core';
+import {
+  COMMON_EVENT_PREFIX,
+  type Id,
+  type IteratorContainer as TMagicIteratorContainer,
+  type MIteratorContainer,
+  type MNode,
+} from '@tmagic/core';
+import { registerNodeHooks, useNode } from '@tmagic/vue-runtime-help';
+
+import IteratorItem from './IteratorItem.vue';
 
 interface IteratorContainerSchema extends Omit<MIteratorContainer, 'id'> {
   id?: Id;
@@ -31,6 +41,10 @@ interface IteratorItemSchema {
 }
 
 export default defineComponent({
+  name: 'tmagic-iterator-container',
+
+  components: { IteratorItem },
+
   props: {
     config: {
       type: Object as PropType<IteratorContainerSchema>,
@@ -38,6 +52,7 @@ export default defineComponent({
     },
     iteratorIndex: Array as PropType<number[]>,
     iteratorContainerId: Array as PropType<Id[]>,
+    containerIndex: Number,
     model: {
       type: Object,
       default: () => ({}),
@@ -45,14 +60,9 @@ export default defineComponent({
   },
 
   setup(props) {
-    const { app } = useApp({
-      config: props.config,
-      iteratorContainerId: props.iteratorContainerId,
-      iteratorIndex: props.iteratorIndex,
-      methods: {},
-    });
-
-    const containerComponent = useComponent({ componentType: 'container', app });
+    const app = inject<TMagicApp>('app');
+    const node = useNode(props, app);
+    registerNodeHooks(node);
 
     const configs = computed<IteratorItemSchema[]>(() => {
       let { iteratorData = [] } = props.config;
@@ -69,7 +79,7 @@ export default defineComponent({
       return iteratorData.map((itemData: any) => {
         const condResult =
           app?.platform !== 'editor'
-            ? app?.dataSourceManager?.compliedIteratorItemConds(itemData, itemConfig, dsField) ?? true
+            ? (app?.dataSourceManager?.compliedIteratorItemConds(itemData, itemConfig, dsField) ?? true)
             : true;
 
         const newItems = app?.dataSourceManager?.compliedIteratorItems(itemData, items, dsField) ?? items;
@@ -115,9 +125,15 @@ export default defineComponent({
       },
     );
 
+    const clickHandler = () => {
+      if (app && node) {
+        app.emit(`${COMMON_EVENT_PREFIX}click`, node);
+      }
+    };
+
     return {
       configs,
-      containerComponent,
+      clickHandler,
     };
   },
 });

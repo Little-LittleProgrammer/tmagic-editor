@@ -32,38 +32,11 @@ import {
   type EventActionItem,
   type EventConfig,
 } from '@tmagic/schema';
-import { DATA_SOURCE_FIELDS_CHANGE_EVENT_PREFIX, getIdFromEl } from '@tmagic/utils';
+import { DATA_SOURCE_FIELDS_CHANGE_EVENT_PREFIX } from '@tmagic/utils';
 
 import type { default as TMagicApp } from './App';
 import FlowState from './FlowState';
 import type { default as TMagicNode } from './Node';
-import { COMMON_EVENT_PREFIX, isCommonMethod, triggerCommonMethod } from './utils';
-
-const getCommonEventName = (commonEventName: string) => {
-  if (commonEventName.startsWith(COMMON_EVENT_PREFIX)) return commonEventName;
-  return `${COMMON_EVENT_PREFIX}${commonEventName}`;
-};
-
-// 点击在组件内的某个元素上，需要向上寻找到当前组件
-const getDirectComponent = (element: HTMLElement | null, app: TMagicApp): TMagicNode | undefined => {
-  if (!element) {
-    return;
-  }
-
-  const id = getIdFromEl()(element);
-
-  if (!id) {
-    return getDirectComponent(element.parentElement, app);
-  }
-
-  const node = app.getNode(
-    id,
-    element.dataset.tmagicIteratorContainerId?.split(','),
-    element.dataset.tmagicIteratorIndex?.split(',').map((i) => globalThis.parseInt(i, 10)),
-  );
-
-  return node;
-};
 
 export default class EventHelper extends EventEmitter {
   public app: TMagicApp;
@@ -75,15 +48,13 @@ export default class EventHelper extends EventEmitter {
     super();
 
     this.app = app;
-
-    globalThis.document.body.addEventListener('click', this.commonClickEventHandler);
   }
 
   public destroy() {
     this.removeNodeEvents();
     this.removeAllListeners();
-
-    globalThis.document.body.removeEventListener('click', this.commonClickEventHandler);
+    this.nodeEventList.clear();
+    this.dataSourceEventList.clear();
   }
 
   public bindNodeEvents(node: TMagicNode) {
@@ -178,6 +149,7 @@ export default class EventHelper extends EventEmitter {
    */
   private async eventHandler(config: EventConfig | number, fromCpt: TMagicNode | DataSource | undefined, args: any[]) {
     const eventConfig = typeof config === 'number' ? (fromCpt as TMagicNode).events[config] : config;
+
     if (has(eventConfig, 'actions')) {
       // EventConfig类型
       const flowState = new FlowState();
@@ -194,8 +166,16 @@ export default class EventHelper extends EventEmitter {
       }
       flowState.reset();
     } else {
-      // 兼容DeprecatedEventConfig类型 组件动作
-      await this.compActionHandler(eventConfig as unknown as CompItemConfig, fromCpt as TMagicNode, args);
+      try {
+        // 兼容DeprecatedEventConfig类型 组件动作
+        await this.compActionHandler(eventConfig as unknown as CompItemConfig, fromCpt as TMagicNode, args);
+      } catch (e: any) {
+        if (this.app.errorHandler) {
+          this.app.errorHandler(e, fromCpt, { type: 'action-handler', config: eventConfig, ...args });
+        } else {
+          throw e;
+        }
+      }
     }
   }
 
@@ -205,20 +185,28 @@ export default class EventHelper extends EventEmitter {
     args: any[],
     flowState: FlowState,
   ) {
-    if (actionItem.actionType === ActionType.COMP) {
-      const compActionItem = actionItem as CompItemConfig;
-      // 组件动作
-      await this.compActionHandler(compActionItem, fromCpt, args);
-    } else if (actionItem.actionType === ActionType.CODE) {
-      const codeActionItem = actionItem as CodeItemConfig;
-      // 执行代码块
-      await this.app.runCode(codeActionItem.codeId, codeActionItem.params || {}, args, flowState);
-    } else if (actionItem.actionType === ActionType.DATA_SOURCE) {
-      const dataSourceActionItem = actionItem as DataSourceItemConfig;
+    try {
+      if (actionItem.actionType === ActionType.COMP) {
+        const compActionItem = actionItem as CompItemConfig;
+        // 组件动作
+        await this.compActionHandler(compActionItem, fromCpt, args);
+      } else if (actionItem.actionType === ActionType.CODE) {
+        const codeActionItem = actionItem as CodeItemConfig;
+        // 执行代码块
+        await this.app.runCode(codeActionItem.codeId, codeActionItem.params || {}, args, flowState);
+      } else if (actionItem.actionType === ActionType.DATA_SOURCE) {
+        const dataSourceActionItem = actionItem as DataSourceItemConfig;
 
-      const [dsId, methodName] = dataSourceActionItem.dataSourceMethod;
+        const [dsId, methodName] = dataSourceActionItem.dataSourceMethod;
 
-      await this.app.runDataSourceMethod(dsId, methodName, dataSourceActionItem.params || {}, args, flowState);
+        await this.app.runDataSourceMethod(dsId, methodName, dataSourceActionItem.params || {}, args, flowState);
+      }
+    } catch (e: any) {
+      if (this.app.errorHandler) {
+        this.app.errorHandler(e, fromCpt, { type: 'action-handler', config: actionItem, flowState, ...args });
+      } else {
+        throw e;
+      }
     }
   }
 
@@ -237,11 +225,7 @@ export default class EventHelper extends EventEmitter {
     }
 
     const toNode = this.app.getNode(to);
-    if (!toNode) throw `ID为${to}的组件不存在`;
-
-    if (isCommonMethod(methodName)) {
-      return triggerCommonMethod(methodName, toNode);
-    }
+    if (!toNode) throw new Error(`ID为${to}的组件不存在`);
 
     if (toNode.instance) {
       if (typeof toNode.instance[methodName] === 'function') {
@@ -255,17 +239,4 @@ export default class EventHelper extends EventEmitter {
       });
     }
   }
-
-  private commonClickEventHandler = (e: MouseEvent) => {
-    if (!e.target) {
-      return;
-    }
-
-    const node = getDirectComponent(e.target as HTMLElement, this.app);
-
-    const eventName = `${getCommonEventName('click')}_${node?.data.id}`;
-    if (node?.eventKeys.has(eventName)) {
-      this.emit(node.eventKeys.get(eventName)!, node);
-    }
-  };
 }

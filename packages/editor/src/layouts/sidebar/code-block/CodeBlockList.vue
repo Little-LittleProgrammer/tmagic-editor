@@ -20,9 +20,6 @@
     </template>
 
     <template #tree-node-tool="{ data }">
-      <TMagicTag v-if="collecting && data.type === 'code'" type="info" size="small" style="margin-right: 5px"
-        >依赖收集中</TMagicTag
-      >
       <TMagicTooltip v-if="data.type === 'code'" effect="dark" :content="editable ? '编辑' : '查看'" placement="bottom">
         <Icon :icon="editable ? Edit : View" class="edit-icon" @click.stop="editCode(`${data.key}`)"></Icon>
       </TMagicTooltip>
@@ -35,18 +32,19 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject } from 'vue';
+import { computed } from 'vue';
 import { Close, Edit, View } from '@element-plus/icons-vue';
 
 import type { Id, MNode } from '@tmagic/core';
 import { DepTargetType } from '@tmagic/core';
-import { tMagicMessage, tMagicMessageBox, TMagicTag, TMagicTooltip } from '@tmagic/design';
+import { tMagicMessage, tMagicMessageBox, TMagicTooltip } from '@tmagic/design';
 
 import Icon from '@editor/components/Icon.vue';
 import Tree from '@editor/components/Tree.vue';
 import { useFilter } from '@editor/hooks/use-filter';
 import { useNodeStatus } from '@editor/hooks/use-node-status';
-import { type CodeBlockListSlots, CodeDeleteErrorType, type Services, type TreeNodeData } from '@editor/type';
+import { useServices } from '@editor/hooks/use-services';
+import { type CodeBlockListSlots, CodeDeleteErrorType, type TreeNodeData } from '@editor/type';
 
 defineSlots<CodeBlockListSlots>();
 
@@ -57,7 +55,7 @@ defineOptions({
 const props = defineProps<{
   indent?: number;
   nextLevelIndentIncrement?: number;
-  customError?: (id: Id, errorType: CodeDeleteErrorType) => any;
+  customError?: (_id: Id, _errorType: CodeDeleteErrorType) => any;
 }>();
 
 const emit = defineEmits<{
@@ -66,19 +64,16 @@ const emit = defineEmits<{
   'node-contextmenu': [event: MouseEvent, data: TreeNodeData];
 }>();
 
-const services = inject<Services>('services');
-const { codeBlockService, depService, editorService } = services || {};
-
-const collecting = computed(() => depService?.get('collecting'));
+const { codeBlockService, depService, editorService } = useServices();
 
 // 代码块列表
 const codeList = computed<TreeNodeData[]>(() =>
-  Object.entries(codeBlockService?.getCodeDsl() || {}).map(([codeId, code]) => {
-    const target = depService?.getTarget(codeId, DepTargetType.CODE_BLOCK);
+  Object.entries(codeBlockService.getCodeDsl() || {}).map(([codeId, code]) => {
+    const target = depService.getTarget(codeId, DepTargetType.CODE_BLOCK);
 
     // 按页面分类显示
     const pageList: TreeNodeData[] =
-      editorService?.get('root')?.items.map((page) => ({
+      editorService.get('root')?.items.map((page) => ({
         name: page.devconfig?.tabName || page.name,
         type: 'node',
         id: `${codeId}_${page.id}`,
@@ -108,7 +103,7 @@ const codeList = computed<TreeNodeData[]>(() =>
       key: codeId,
       name: code.name,
       type: 'code',
-      codeBlockContent: codeBlockService?.getCodeContentById(codeId),
+      codeBlockContent: codeBlockService.getCodeContentById(codeId),
       // 只有一个页面不显示页面分类
       items: pageList.length > 1 ? pageList.filter((page) => page.items?.length) : pageList[0]?.items || [],
     };
@@ -127,12 +122,12 @@ const filterNode = (value: string, data: MNode): boolean => {
 const { nodeStatusMap } = useNodeStatus(codeList);
 const { filterTextChangeHandler } = useFilter(codeList, nodeStatusMap, filterNode);
 
-const editable = computed(() => codeBlockService?.getEditStatus());
+const editable = computed(() => codeBlockService.getEditStatus());
 
 // 选中组件
 const selectComp = (compId: Id) => {
-  const stage = editorService?.get('stage');
-  editorService?.select(compId);
+  const stage = editorService.get('stage');
+  editorService.select(compId);
   stage?.select(compId);
 };
 
@@ -150,7 +145,7 @@ const editCode = (id: string) => {
 const deleteCode = async (id: string) => {
   const currentCode = codeList.value.find((codeItem) => codeItem.id === id);
   const existBinds = Boolean(currentCode?.items?.length);
-  const undeleteableList = codeBlockService?.getUndeletableList() || [];
+  const undeleteableList = codeBlockService.getUndeletableList() || [];
   if (!existBinds && !undeleteableList.includes(id)) {
     await tMagicMessageBox.confirm('确定删除该代码块吗？', '提示', {
       confirmButtonText: '确定',
@@ -178,6 +173,7 @@ const nodeContentMenuHandler = (event: MouseEvent, data: TreeNodeData) => {
 };
 
 defineExpose({
+  nodeStatusMap,
   filter: filterTextChangeHandler,
   deleteCode,
 });

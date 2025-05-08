@@ -19,57 +19,78 @@
 import { inject, onBeforeUnmount, onMounted } from 'vue-demi';
 
 import type TMagicApp from '@tmagic/core';
-import type { Id, MNodeInstance } from '@tmagic/core';
+import type { Id, MNodeInstance, Node as TMagicNode } from '@tmagic/core';
 import { isDslNode } from '@tmagic/core';
+
+interface Methods {
+  [key: string]: (...args: any[]) => any;
+}
 
 interface UseAppOptions<T extends MNodeInstance = MNodeInstance> {
   config: T;
   iteratorContainerId?: Id[];
   iteratorIndex?: number[];
-  methods?: {
-    [key: string]: Function;
-  };
+  methods?: Methods;
 }
 
-export const useApp = ({ methods = {}, config, iteratorContainerId, iteratorIndex }: UseAppOptions) => {
-  const app = inject<TMagicApp>('app');
+export const useNode = <T extends TMagicNode = TMagicNode>(
+  props: Pick<UseAppOptions, 'config' | 'iteratorContainerId' | 'iteratorIndex'>,
+  app = inject<TMagicApp>('app'),
+): T | undefined => {
+  if (isDslNode(props.config) && props.config.id) {
+    return app?.getNode(props.config.id, props.iteratorContainerId, props.iteratorIndex);
+  }
+  return void 0;
+};
+
+export const registerNodeHooks = (node?: TMagicNode, methods: Methods = {}) => {
+  if (!node) {
+    return;
+  }
 
   const emitData = {
-    config,
+    config: node.data,
     ...methods,
   };
 
-  const display = <T extends MNodeInstance>(config: T) => {
-    if (config.visible === false) return false;
-    if (config.condResult === false) return false;
+  node.emit('created', emitData);
 
-    const displayCfg = config.display;
+  onMounted(() => {
+    node.emit('mounted', emitData);
+  });
 
-    if (typeof displayCfg === 'function') {
-      return displayCfg(app);
-    }
+  onBeforeUnmount(() => {
+    node.emit('destroy', emitData);
+  });
+};
 
-    return displayCfg !== false;
-  };
+export const useApp = <T extends TMagicApp = TMagicApp>({
+  methods,
+  config,
+  iteratorContainerId,
+  iteratorIndex,
+}: UseAppOptions) => {
+  const app = inject<T>('app');
 
-  const node = isDslNode(config) && config.id ? app?.getNode(config.id, iteratorContainerId, iteratorIndex) : undefined;
+  if (!app) {
+    throw new Error(`component ${config.type}: app is not injected`);
+  }
 
-  if (node) {
-    node.emit('created', emitData);
+  const node = useNode(
+    {
+      config,
+      iteratorContainerId,
+      iteratorIndex,
+    },
+    app,
+  );
 
-    onMounted(() => {
-      node.emit('mounted', emitData);
-    });
-
-    onBeforeUnmount(() => {
-      node.emit('destroy', emitData);
-    });
+  if (node && methods) {
+    registerNodeHooks(node, methods);
   }
 
   return {
     app,
     node,
-
-    display,
   };
 };

@@ -185,6 +185,10 @@ export const isDataSourceTarget = (
   value: any,
   hasArray = false,
 ) => {
+  if (!value || !['string', 'object'].includes(typeof value)) {
+    return false;
+  }
+
   if (`${key}`.startsWith(NODE_CONDS_KEY)) {
     return false;
   }
@@ -259,20 +263,32 @@ export const createDataSourceCondTarget = (ds: Pick<DataSourceSchema, 'id' | 'fi
     isTarget: (key: string | number, value: any) => isDataSourceCondTarget(ds, key, value),
   });
 
-export const createDataSourceMethodTarget = (ds: Pick<DataSourceSchema, 'id' | 'fields'>, initialDeps: DepData = {}) =>
+export const createDataSourceMethodTarget = (
+  ds: Pick<DataSourceSchema, 'id' | 'methods' | 'fields'>,
+  initialDeps: DepData = {},
+) =>
   new Target({
     type: DepTargetType.DATA_SOURCE_METHOD,
     id: ds.id,
     initialDeps,
     isTarget: (_key: string | number, value: any) => {
       // 使用data-source-method-select 可以配置出来
-      if (!Array.isArray(value) || !ds) {
+      if (!Array.isArray(value)) {
         return false;
       }
 
-      const [dsId, ...keys] = value;
+      const [dsId, methodName] = value;
 
-      if (dsId !== ds.id || ds.fields?.find((field) => field.name === keys[0])) {
+      if (!methodName || dsId !== ds.id) {
+        return false;
+      }
+
+      if (ds.methods?.find((method) => method.name === methodName)) {
+        return true;
+      }
+
+      // 配置的方法名称可能会是数据源类中定义的，并不存在于methods中，所以这里判断如果methodName如果是字段名称，就表示配置的不是方法
+      if (ds.fields?.find((field) => field.name === methodName)) {
         return false;
       }
 
@@ -285,12 +301,12 @@ export const traverseTarget = (
   cb: (target: Target) => void,
   type?: DepTargetType | string,
 ) => {
-  Object.values(targetsList).forEach((targets) => {
-    Object.values(targets).forEach((target) => {
+  for (const targets of Object.values(targetsList)) {
+    for (const target of Object.values(targets)) {
       if (type && target.type !== type) {
-        return;
+        continue;
       }
       cb(target);
-    });
-  });
+    }
+  }
 };

@@ -42,6 +42,7 @@ import { isEmpty, map } from 'lodash-es';
 import type { Id } from '@tmagic/core';
 import { TMagicButton } from '@tmagic/design';
 import {
+  type CodeSelectColConfig,
   type ContainerChangeEventData,
   createValues,
   type FieldProps,
@@ -52,7 +53,8 @@ import {
 
 import CodeParams from '@editor/components/CodeParams.vue';
 import MIcon from '@editor/components/Icon.vue';
-import type { CodeParamStatement, CodeSelectColConfig, EventBus, Services } from '@editor/type';
+import { useServices } from '@editor/hooks/use-services';
+import type { CodeParamStatement, EventBus } from '@editor/type';
 import { SideItemKey } from '@editor/type';
 
 defineOptions({
@@ -60,7 +62,7 @@ defineOptions({
 });
 
 const mForm = inject<FormState | undefined>('mForm');
-const services = inject<Services>('services');
+const { codeBlockService, uiService } = useServices();
 const eventBus = inject<EventBus>('eventBus');
 const emit = defineEmits<{
   change: [v: any, eventData: ContainerChangeEventData];
@@ -73,7 +75,7 @@ const props = withDefaults(defineProps<FieldProps<CodeSelectColConfig>>(), {
 const notEditable = computed(() => filterFunction(mForm, props.config.notEditable, props));
 
 const hasCodeBlockSidePanel = computed(() =>
-  (services?.uiService.get('sideBarItems') || []).find((item) => item.$key === SideItemKey.CODE_BLOCK),
+  (uiService.get('sideBarItems') || []).find((item) => item.$key === SideItemKey.CODE_BLOCK),
 );
 
 /**
@@ -94,7 +96,7 @@ const getParamItemsConfig = (codeId?: Id): CodeParamStatement[] => {
   }));
 };
 
-const codeDsl = computed(() => services?.codeBlockService.getCodeDsl());
+const codeDsl = computed(() => codeBlockService.getCodeDsl());
 const paramsConfig = ref<CodeParamStatement[]>(getParamItemsConfig(props.model[props.name]));
 
 watch(
@@ -120,24 +122,28 @@ const selectConfig = {
     }
     return [];
   },
-  onChange: (formState: any, codeId: Id, { model }: any) => {
+  onChange: (formState: any, codeId: Id, { setModel, model }: any) => {
     // 通过下拉框选择的codeId变化后修正model的值，避免写入其他codeId的params
     paramsConfig.value = getParamItemsConfig(codeId);
 
     if (paramsConfig.value.length) {
-      model.params = createValues(formState, paramsConfig.value, {}, model.params);
+      setModel('params', createValues(formState, paramsConfig.value, {}, model.params));
     } else {
-      model.params = {};
+      setModel('params', {});
     }
 
     return codeId;
   },
 };
 
-const onCodeIdChangeHandler = (value: any) => {
+const onCodeIdChangeHandler = (value: any, eventData: ContainerChangeEventData) => {
   props.model.params = value.params;
+
   emit('change', props.model, {
-    changeRecords: [
+    changeRecords: eventData.changeRecords?.map((item) => ({
+      prop: `${props.prop.replace(props.name, '')}${item.propPath}`,
+      value: item.value,
+    })) || [
       {
         propPath: props.prop,
         value: value[props.name],

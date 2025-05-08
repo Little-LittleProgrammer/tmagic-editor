@@ -527,8 +527,8 @@ class Editor extends BaseService {
 
     let newConfig = await this.toggleFixedPosition(toRaw(config), node, root);
 
-    newConfig = mergeWith(cloneDeep(node), newConfig, (objValue, srcValue, key) => {
-      if (typeof srcValue === 'undefined' && Object.hasOwn(newConfig, key)) {
+    newConfig = mergeWith(cloneDeep(node), newConfig, (objValue, srcValue, key, object: any, source: any) => {
+      if (typeof srcValue === 'undefined' && Object.hasOwn(source, key)) {
         return '';
       }
 
@@ -1088,10 +1088,11 @@ class Editor extends BaseService {
     this.isHistoryStateChange = true;
     await this.update(value.data);
     this.set('modifiedNodeIds', value.modifiedNodeIds);
-    setTimeout(async () => {
+    setTimeout(() => {
       if (!value.nodeId) return;
-      await this.select(value.nodeId);
-      this.get('stage')?.select(value.nodeId);
+      this.select(value.nodeId).then(() => {
+        this.get('stage')?.select(value.nodeId);
+      });
     }, 0);
     this.emit('history-change', value.data);
   }

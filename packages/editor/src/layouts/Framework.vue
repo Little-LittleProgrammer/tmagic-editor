@@ -1,5 +1,5 @@
 <template>
-  <div class="m-editor" ref="content" style="min-width: 180px">
+  <div class="m-editor" ref="content" style="min-width: 900px">
     <slot name="header"></slot>
 
     <slot name="nav"></slot>
@@ -17,12 +17,12 @@
       left-class="m-editor-framework-left"
       center-class="m-editor-framework-center"
       right-class="m-editor-framework-right"
-      v-model:left="columnWidth.left"
-      v-model:right="columnWidth.right"
-      :min-left="65"
-      :min-right="420"
-      :min-center="100"
-      :width="frameworkRect?.width || 0"
+      :left="columnWidth.left"
+      :right="columnWidth.right"
+      :min-left="MIN_LEFT_COLUMN_WIDTH"
+      :min-right="MIN_RIGHT_COLUMN_WIDTH"
+      :min-center="MIN_CENTER_COLUMN_WIDTH"
+      :width="frameworkRect.width"
       @change="columnWidthChange"
     >
       <template #left>
@@ -60,13 +60,23 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue';
 
 import type { MPage, MPageFragment } from '@tmagic/core';
 
 import SplitView from '@editor/components/SplitView.vue';
-import type { FrameworkSlots, GetColumnWidth, PageBarSortOptions, Services } from '@editor/type';
+import { useServices } from '@editor/hooks/use-services';
+import { Protocol } from '@editor/services/storage';
+import type { FrameworkSlots, GetColumnWidth, PageBarSortOptions } from '@editor/type';
 import { getEditorConfig } from '@editor/utils/config';
+import {
+  DEFAULT_LEFT_COLUMN_WIDTH,
+  LEFT_COLUMN_WIDTH_STORAGE_KEY,
+  MIN_CENTER_COLUMN_WIDTH,
+  MIN_LEFT_COLUMN_WIDTH,
+  MIN_RIGHT_COLUMN_WIDTH,
+  RIGHT_COLUMN_WIDTH_STORAGE_KEY,
+} from '@editor/utils/const';
 
 import PageBar from './page-bar/PageBar.vue';
 import AddPageBox from './AddPageBox.vue';
@@ -81,63 +91,52 @@ defineOptions({
 defineProps<{
   disabledPageFragment: boolean;
   pageBarSortOptions?: PageBarSortOptions;
-  pageFilterFunction?: (page: MPage | MPageFragment, keyword: string) => boolean;
+  pageFilterFunction?: (_page: MPage | MPageFragment, _keyword: string) => boolean;
 }>();
 
-const DEFAULT_LEFT_COLUMN_WIDTH = 310;
-const DEFAULT_RIGHT_COLUMN_WIDTH = 480;
-
 const codeOptions = inject('codeOptions', {});
-const { editorService, uiService } = inject<Services>('services') || {};
+const { editorService, uiService, storageService } = useServices();
 
-const content = useTemplateRef<HTMLDivElement>('content');
-const splitView = useTemplateRef<InstanceType<typeof SplitView>>('splitView');
+const contentEl = useTemplateRef<HTMLDivElement>('content');
+const splitViewRef = useTemplateRef<InstanceType<typeof SplitView>>('splitView');
 
-const root = computed(() => editorService?.get('root'));
-const page = computed(() => editorService?.get('page'));
+const root = computed(() => editorService.get('root'));
+const page = computed(() => editorService.get('page'));
 
-const pageLength = computed(() => editorService?.get('pageLength') || 0);
-const showSrc = computed(() => uiService?.get('showSrc'));
+const pageLength = computed(() => editorService.get('pageLength') || 0);
+const showSrc = computed(() => uiService.get('showSrc'));
 
-const LEFT_COLUMN_WIDTH_STORAGE_KEY = '$MagicEditorLeftColumnWidthData';
-const RIGHT_COLUMN_WIDTH_STORAGE_KEY = '$MagicEditorRightColumnWidthData';
-
-const getLeftColumnWidthCacheData = () =>
-  Number(globalThis.localStorage.getItem(LEFT_COLUMN_WIDTH_STORAGE_KEY)) || DEFAULT_LEFT_COLUMN_WIDTH;
-
-const getRightColumnWidthCacheData = () =>
-  Number(globalThis.localStorage.getItem(RIGHT_COLUMN_WIDTH_STORAGE_KEY)) || DEFAULT_RIGHT_COLUMN_WIDTH;
-
-const columnWidth = ref<Partial<GetColumnWidth>>({
-  left: getLeftColumnWidthCacheData(),
-  center: 0,
-  right: getRightColumnWidthCacheData(),
-});
+const columnWidth = computed(() => uiService.get('columnWidth'));
 
 watch(pageLength, () => {
-  splitView.value?.updateWidth();
+  splitViewRef.value?.updateWidth();
 });
 
 watch(
-  () => uiService?.get('hideSlideBar'),
+  () => uiService.get('hideSlideBar'),
   (hideSlideBar) => {
-    columnWidth.value.left = hideSlideBar ? 0 : getLeftColumnWidthCacheData();
+    uiService.set('columnWidth', {
+      ...columnWidth.value,
+      left: hideSlideBar
+        ? 0
+        : storageService.getItem(LEFT_COLUMN_WIDTH_STORAGE_KEY, { protocol: Protocol.NUMBER }) ||
+          DEFAULT_LEFT_COLUMN_WIDTH,
+    });
   },
 );
 
 const columnWidthChange = (columnW: GetColumnWidth) => {
-  columnWidth.value = columnW;
+  storageService.setItem(LEFT_COLUMN_WIDTH_STORAGE_KEY, columnW.left, { protocol: Protocol.NUMBER });
+  storageService.setItem(RIGHT_COLUMN_WIDTH_STORAGE_KEY, columnW.right, { protocol: Protocol.NUMBER });
 
-  globalThis.localStorage.setItem(LEFT_COLUMN_WIDTH_STORAGE_KEY, `${columnW.left}`);
-  globalThis.localStorage.setItem(RIGHT_COLUMN_WIDTH_STORAGE_KEY, `${columnW.right}`);
-  uiService?.set('columnWidth', columnW);
+  uiService.set('columnWidth', columnW);
 };
 
-const frameworkRect = computed(() => uiService?.get('frameworkRect'));
+const frameworkRect = computed(() => uiService.get('frameworkRect'));
 
 const resizerObserver = new ResizeObserver((entries) => {
   const { contentRect } = entries[0];
-  uiService?.set('frameworkRect', {
+  uiService.set('frameworkRect', {
     width: contentRect.width,
     height: contentRect.height,
     left: contentRect.left,
@@ -146,8 +145,8 @@ const resizerObserver = new ResizeObserver((entries) => {
 });
 
 onMounted(() => {
-  if (content.value) {
-    resizerObserver.observe(content.value);
+  if (contentEl.value) {
+    resizerObserver.observe(contentEl.value);
   }
 });
 
@@ -158,7 +157,7 @@ onBeforeUnmount(() => {
 const saveCode = (value: string) => {
   try {
     const parseDSL = getEditorConfig('parseDSL');
-    editorService?.set('root', parseDSL(value));
+    editorService.set('root', parseDSL(value));
   } catch (e: any) {
     console.error(e);
   }

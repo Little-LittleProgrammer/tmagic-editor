@@ -68,14 +68,15 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, ref, useTemplateRef, watch } from 'vue';
+import { computed, ref, useTemplateRef, watch } from 'vue';
 import { CaretBottom, Delete, DocumentCopy } from '@element-plus/icons-vue';
 
 import { type Id, type MPage, type MPageFragment, NodeType } from '@tmagic/core';
 import { TMagicIcon, TMagicPopover } from '@tmagic/design';
 
 import ToolButton from '@editor/components/ToolButton.vue';
-import type { PageBarSortOptions, Services } from '@editor/type';
+import { useServices } from '@editor/hooks/use-services';
+import type { PageBarSortOptions } from '@editor/type';
 
 import AddButton from './AddButton.vue';
 import PageBarScrollContainer from './PageBarScrollContainer.vue';
@@ -90,18 +91,17 @@ const props = withDefaults(
   defineProps<{
     disabledPageFragment: boolean;
     pageBarSortOptions?: PageBarSortOptions;
-    filterFunction?: (page: MPage | MPageFragment, keyword: string) => boolean;
+    filterFunction?: (_page: MPage | MPageFragment, _keyword: string) => boolean;
   }>(),
   {
     filterFunction: (page, keyword) => page.name?.includes(keyword) || `${page.id}`.includes(keyword),
   },
 );
 
-const services = inject<Services>('services');
-const editorService = services?.editorService;
+const { editorService } = useServices();
 
-const root = computed(() => editorService?.get('root'));
-const page = computed(() => editorService?.get('page'));
+const root = computed(() => editorService.get('root'));
+const page = computed(() => editorService.get('page'));
 
 const query = ref<{
   pageType: NodeType[];
@@ -129,55 +129,55 @@ const list = computed(() => {
 });
 
 const switchPage = (id: Id) => {
-  editorService?.select(id);
+  editorService.select(id);
 };
 
 const copy = (node: MPage | MPageFragment) => {
-  node && editorService?.copy(node);
-  editorService?.paste({
+  node && editorService.copy(node);
+  editorService.paste({
     left: 0,
     top: 0,
   });
 };
 
 const remove = (node: MPage | MPageFragment) => {
-  editorService?.remove(node);
+  editorService.remove(node);
 };
 
-const pageBarScrollContainer = useTemplateRef<InstanceType<typeof PageBarScrollContainer>>('pageBarScrollContainer');
-const pageBarItems = useTemplateRef<HTMLDivElement[]>('pageBarItems');
+const pageBarScrollContainerRef = useTemplateRef<InstanceType<typeof PageBarScrollContainer>>('pageBarScrollContainer');
+const pageBarItemEls = useTemplateRef<HTMLDivElement[]>('pageBarItems');
 watch(page, (page) => {
   if (
     !page ||
-    !pageBarScrollContainer.value?.itemsContainerWidth ||
-    !pageBarItems.value ||
-    pageBarItems.value.length < 2
+    !pageBarScrollContainerRef.value?.itemsContainerWidth ||
+    !pageBarItemEls.value ||
+    pageBarItemEls.value.length < 2
   ) {
     return;
   }
 
-  const firstItem = pageBarItems.value[0];
-  const lastItem = pageBarItems.value[pageBarItems.value.length - 1];
+  const firstItem = pageBarItemEls.value[0];
+  const lastItem = pageBarItemEls.value[pageBarItemEls.value.length - 1];
 
   if (page.id === firstItem.dataset.pageId) {
-    pageBarScrollContainer.value.scroll('start');
+    pageBarScrollContainerRef.value.scroll('start');
   } else if (page.id === lastItem.dataset.pageId) {
-    pageBarScrollContainer.value.scroll('end');
+    pageBarScrollContainerRef.value.scroll('end');
   } else {
-    const pageItem = pageBarItems.value.find((item) => item.dataset.pageId === page.id);
+    const pageItem = pageBarItemEls.value.find((item) => item.dataset.pageId === page.id);
     if (!pageItem) {
       return;
     }
 
     const pageItemRect = pageItem.getBoundingClientRect();
     const offsetLeft = pageItemRect.left - firstItem.getBoundingClientRect().left;
-    const { itemsContainerWidth } = pageBarScrollContainer.value;
+    const { itemsContainerWidth } = pageBarScrollContainerRef.value;
 
     const left = itemsContainerWidth - offsetLeft - pageItemRect.width;
 
-    const translateLeft = pageBarScrollContainer.value.getTranslateLeft();
+    const translateLeft = pageBarScrollContainerRef.value.getTranslateLeft();
     if (offsetLeft + translateLeft < 0 || offsetLeft + pageItemRect.width > itemsContainerWidth - translateLeft) {
-      pageBarScrollContainer.value.scrollTo(left);
+      pageBarScrollContainerRef.value.scrollTo(left);
     }
   }
 });

@@ -32,6 +32,10 @@ interface EventCache {
   args: any[];
 }
 
+interface Methods {
+  [key: string]: (...args: any[]) => any;
+}
+
 export interface NodeOptions {
   config: MNode;
   page?: Page;
@@ -45,7 +49,7 @@ class Node extends EventEmitter {
     [key: string]: any;
   };
   public events: EventConfig[] = [];
-  public instance?: any;
+  public instance?: any = {};
   public page?: Page;
   public parent?: Node;
   public app: TMagicApp;
@@ -69,11 +73,39 @@ class Node extends EventEmitter {
     const { events, style } = data;
     this.events = events || [];
     this.style = style || {};
+    try {
+      this.instance.config = data;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (e: any) {}
+
     this.emit('update-data', data);
   }
 
   public addEventToQueue(event: EventCache) {
     this.eventQueue.push(event);
+  }
+
+  /**
+   * @deprecated use setInstance instead
+   */
+  public registerMethod(methods: Methods) {
+    if (!methods) {
+      return;
+    }
+
+    if (!this.instance) {
+      this.instance = {};
+    }
+
+    for (const [key, fn] of Object.entries(methods)) {
+      if (typeof fn === 'function') {
+        this.instance[key] = fn;
+      }
+    }
+  }
+
+  public setInstance(instance: any) {
+    this.instance = instance;
   }
 
   public async runHookCode(hook: string, params?: Record<string, any>) {
@@ -102,8 +134,9 @@ class Node extends EventEmitter {
       const { codeType = HookCodeType.CODE, codeId, params: itemParams = {} } = item;
 
       let functionContent: ((...args: any[]) => any) | string | undefined;
-      const functionParams: { app: TMagicApp; params: Record<string, any>; dataSource?: DataSource } = {
+      const functionParams: { app: TMagicApp; node: Node; params: Record<string, any>; dataSource?: DataSource } = {
         app: this.app,
+        node: this,
         params: params || itemParams,
       };
 
@@ -122,11 +155,15 @@ class Node extends EventEmitter {
   }
 
   public destroy() {
+    this.eventQueue.length = 0;
+    this.instance = null;
+    this.events = [];
+    this.style = {};
     this.removeAllListeners();
   }
 
   private listenLifeSafe() {
-    this.once('created', async (instance: any) => {
+    this.once('created', (instance: any) => {
       this.once('destroy', () => {
         this.instance = null;
         if (typeof this.data.destroy === 'function') {
@@ -136,20 +173,28 @@ class Node extends EventEmitter {
         this.listenLifeSafe();
       });
 
-      this.instance = instance;
-      await this.runHookCode('created');
-    });
-
-    this.once('mounted', async (instance: any) => {
-      this.instance = instance;
-
-      for (let eventConfig = this.eventQueue.shift(); eventConfig; eventConfig = this.eventQueue.shift()) {
-        if (typeof instance[eventConfig.method] === 'function') {
-          await instance[eventConfig.method](eventConfig.fromCpt, ...eventConfig.args);
-        }
+      if (instance) {
+        this.setInstance(instance);
       }
 
-      await this.runHookCode('mounted');
+      this.runHookCode('created');
+    });
+
+    this.once('mounted', (instance: any) => {
+      const handler = async () => {
+        if (instance) {
+          this.setInstance(instance);
+        }
+
+        for (let eventConfig = this.eventQueue.shift(); eventConfig; eventConfig = this.eventQueue.shift()) {
+          if (typeof instance[eventConfig.method] === 'function') {
+            await instance[eventConfig.method](eventConfig.fromCpt, ...eventConfig.args);
+          }
+        }
+
+        this.runHookCode('mounted');
+      };
+      handler();
     });
   }
 }

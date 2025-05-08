@@ -1,7 +1,7 @@
 import React from 'react';
 
+import { type Id, IS_DSL_NODE_KEY, type MComponent, type MNode } from '@tmagic/core';
 import { useApp } from '@tmagic/react-runtime-help';
-import type { Id, MComponent, MNode } from '@tmagic/schema';
 
 interface PageFragmentContainerProps {
   config: MComponent;
@@ -13,13 +13,15 @@ interface PageFragmentContainerProps {
   iteratorContainerId: Id[];
 }
 
-const PageFragmentContainer: React.FC<PageFragmentContainerProps> = ({   config,
+const PageFragmentContainer: React.FC<PageFragmentContainerProps> = ({
+  config,
   id,
   style,
   className,
   containerIndex,
   iteratorIndex,
-  iteratorContainerId, }) => {
+  iteratorContainerId,
+}) => {
   const { app } = useApp({
     config,
     methods: {},
@@ -57,14 +59,14 @@ const PageFragmentContainer: React.FC<PageFragmentContainerProps> = ({   config,
 
   return (
     <div
-      data-tmagic-id={`${id || ''}`}
+      data-tmagic-id={`${id || config.id || ''}`}
       data-container-index={containerIndex}
       data-tmagic-iterator-index={iteratorIndex}
       data-tmagic-iterator-container-id={iteratorContainerId}
       className={classNames.join(' ')}
       style={style}
     >
-      <MagicUiContainer config={containerConfig}></MagicUiContainer>
+      <MagicUiContainer config={{ ...containerConfig, [IS_DSL_NODE_KEY]: false }}></MagicUiContainer>
     </div>
   );
 };

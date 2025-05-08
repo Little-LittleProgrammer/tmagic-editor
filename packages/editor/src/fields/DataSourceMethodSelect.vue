@@ -37,41 +37,48 @@ import { Edit, View } from '@element-plus/icons-vue';
 
 import type { Id } from '@tmagic/core';
 import { TMagicButton, TMagicTooltip } from '@tmagic/design';
-import { createValues, type FieldProps, filterFunction, type FormState, MContainer } from '@tmagic/form';
+import {
+  createValues,
+  type DataSourceMethodSelectConfig,
+  type FieldProps,
+  filterFunction,
+  type FormState,
+  MContainer,
+  type OnChangeHandlerData,
+} from '@tmagic/form';
 
 import CodeParams from '@editor/components/CodeParams.vue';
 import MIcon from '@editor/components/Icon.vue';
-import type { CodeParamStatement, DataSourceMethodSelectConfig, EventBus, Services } from '@editor/type';
+import { useServices } from '@editor/hooks/use-services';
+import type { CodeParamStatement, EventBus } from '@editor/type';
 import { SideItemKey } from '@editor/type';
 
 defineOptions({
   name: 'MFieldsDataSourceMethodSelect',
 });
 
+const { dataSourceService, uiService } = useServices();
 const mForm = inject<FormState | undefined>('mForm');
-const services = inject<Services>('services');
 const eventBus = inject<EventBus>('eventBus');
 
 const emit = defineEmits(['change']);
-
-const dataSourceService = services?.dataSourceService;
 
 const props = withDefaults(defineProps<FieldProps<DataSourceMethodSelectConfig>>(), {
   disabled: false,
 });
 
 const hasDataSourceSidePanel = computed(() =>
-  (services?.uiService.get('sideBarItems') || []).find((item) => item.$key === SideItemKey.DATA_SOURCE),
+  (uiService.get('sideBarItems') || []).find((item) => item.$key === SideItemKey.DATA_SOURCE),
 );
 
 const notEditable = computed(() => filterFunction(mForm, props.config.notEditable, props));
 
-const dataSources = computed(() => dataSourceService?.get('dataSources'));
+const dataSources = computed(() => dataSourceService.get('dataSources'));
 
 const isCustomMethod = computed(() => {
   const [id, name] = props.model[props.name];
 
-  const dataSource = dataSourceService?.getDataSourceById(id);
+  const dataSource = dataSourceService.getDataSourceById(id);
 
   return Boolean(dataSource?.methods.find((method) => method.name === name));
 });
@@ -93,21 +100,25 @@ const getParamItemsConfig = ([dataSourceId, methodName]: [Id, string] = ['', '']
 
 const paramsConfig = ref<CodeParamStatement[]>(getParamItemsConfig(props.model[props.name || 'dataSourceMethod']));
 
-const setParamsConfig = (dataSourceMethod: [Id, string], formState: any = {}) => {
+const setParamsConfig = (
+  dataSourceMethod: [Id, string],
+  formState: any = {},
+  setModel: OnChangeHandlerData['setModel'],
+) => {
   // 通过下拉框选择的codeId变化后修正model的值，避免写入其他codeId的params
   paramsConfig.value = dataSourceMethod ? getParamItemsConfig(dataSourceMethod) : [];
 
   if (paramsConfig.value.length) {
-    props.model.params = createValues(formState, paramsConfig.value, {}, props.model.params);
+    setModel('params', createValues(formState, paramsConfig.value, {}, props.model.params));
   } else {
-    props.model.params = {};
+    setModel('params', {});
   }
 };
 
 const methodsOptions = computed(
   () =>
     dataSources.value
-      ?.filter((ds) => ds.methods?.length || dataSourceService?.getFormMethod(ds.type).length)
+      ?.filter((ds) => ds.methods?.length || dataSourceService.getFormMethod(ds.type).length)
       ?.map((ds) => ({
         label: ds.title || ds.id,
         value: ds.id,
@@ -126,8 +137,8 @@ const cascaderConfig = computed(() => ({
   name: props.name,
   options: methodsOptions.value,
   disable: props.disabled,
-  onChange: (formState: any, dataSourceMethod: [Id, string]) => {
-    setParamsConfig(dataSourceMethod, formState);
+  onChange: (formState: any, dataSourceMethod: [Id, string], { setModel }: OnChangeHandlerData) => {
+    setParamsConfig(dataSourceMethod, formState, setModel);
 
     return dataSourceMethod;
   },
@@ -144,7 +155,7 @@ const onChangeHandler = (value: any) => {
 const editCodeHandler = () => {
   const [id] = props.model[props.name];
 
-  const dataSource = dataSourceService?.getDataSourceById(id);
+  const dataSource = dataSourceService.getDataSourceById(id);
 
   if (!dataSource) return;
 

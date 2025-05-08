@@ -19,9 +19,6 @@
       </div>
     </template>
     <template #tree-node-tool="{ data }">
-      <TMagicTag v-if="collecting && data.type === 'ds'" type="info" size="small" style="margin-right: 5px"
-        >依赖收集中</TMagicTag
-      >
       <TMagicTooltip v-if="data.type === 'ds'" effect="dark" :content="editable ? '编辑' : '查看'" placement="bottom">
         <Icon :icon="editable ? Edit : View" class="edit-icon" @click.stop="editHandler(`${data.key}`)"></Icon>
       </TMagicTooltip>
@@ -34,17 +31,18 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject } from 'vue';
+import { computed } from 'vue';
 import { Close, Edit, View } from '@element-plus/icons-vue';
 
 import { DepData, DepTargetType, Id, MNode } from '@tmagic/core';
-import { TMagicTag, TMagicTooltip } from '@tmagic/design';
+import { TMagicTooltip } from '@tmagic/design';
 
 import Icon from '@editor/components/Icon.vue';
 import Tree from '@editor/components/Tree.vue';
 import { useFilter } from '@editor/hooks/use-filter';
 import { useNodeStatus } from '@editor/hooks/use-node-status';
-import type { DataSourceListSlots, Services, TreeNodeData } from '@editor/type';
+import { useServices } from '@editor/hooks/use-services';
+import type { DataSourceListSlots, TreeNodeData } from '@editor/type';
 
 defineSlots<DataSourceListSlots>();
 
@@ -63,17 +61,15 @@ const emit = defineEmits<{
   'node-contextmenu': [event: MouseEvent, data: TreeNodeData];
 }>();
 
-const { depService, editorService, dataSourceService } = inject<Services>('services') || {};
+const { depService, editorService, dataSourceService } = useServices();
 
-const collecting = computed(() => depService?.get('collecting'));
+const editable = computed(() => dataSourceService.get('editable'));
 
-const editable = computed(() => dataSourceService?.get('editable') ?? true);
+const dataSources = computed(() => dataSourceService.get('dataSources'));
 
-const dataSources = computed(() => dataSourceService?.get('dataSources') || []);
-
-const dsDep = computed(() => depService?.getTargets(DepTargetType.DATA_SOURCE) || {});
-const dsMethodDep = computed(() => depService?.getTargets(DepTargetType.DATA_SOURCE_METHOD) || {});
-const dsCondDep = computed(() => depService?.getTargets(DepTargetType.DATA_SOURCE_COND) || {});
+const dsDep = computed(() => depService.getTargets(DepTargetType.DATA_SOURCE));
+const dsMethodDep = computed(() => depService.getTargets(DepTargetType.DATA_SOURCE_METHOD));
+const dsCondDep = computed(() => depService.getTargets(DepTargetType.DATA_SOURCE_COND));
 
 const getKeyTreeConfig = (dep: DepData[string], type?: string, parentKey?: Id) =>
   dep.keys.map((key) => ({
@@ -122,7 +118,7 @@ const list = computed(() =>
     const dsCondDeps = dsCondDep.value[ds.id]?.deps || {};
 
     const items =
-      editorService?.get('root')?.items.map((page) => ({
+      editorService.get('root')?.items.map((page) => ({
         name: page.devconfig?.tabName || page.name,
         type: 'node',
         id: `${ds.id}_${page.id}`,
@@ -166,8 +162,8 @@ const removeHandler = async (id: string) => {
 
 // 选中组件
 const selectComp = (compId: Id) => {
-  const stage = editorService?.get('stage');
-  editorService?.select(compId);
+  const stage = editorService.get('stage');
+  editorService.select(compId);
   stage?.select(compId);
 };
 
@@ -182,6 +178,7 @@ const nodeContentMenuHandler = (event: MouseEvent, data: TreeNodeData) => {
 };
 
 defineExpose({
+  nodeStatusMap,
   filter: filterTextChangeHandler,
 });
 </script>

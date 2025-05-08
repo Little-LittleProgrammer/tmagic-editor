@@ -21,27 +21,8 @@ import type EventEmitter from 'events';
 import Sortable, { type Options, type SortableEvent } from 'sortablejs';
 import type { PascalCasedProperties } from 'type-fest';
 
-import type {
-  CodeBlockContent,
-  CodeBlockDSL,
-  DataSourceFieldType,
-  DataSourceSchema,
-  Id,
-  MApp,
-  MContainer,
-  MNode,
-  MPage,
-  MPageFragment,
-} from '@tmagic/core';
-import type {
-  ChildConfig,
-  FilterFunction,
-  FormConfig,
-  FormItem,
-  FormState,
-  Input,
-  TableColumnConfig,
-} from '@tmagic/form';
+import type { CodeBlockContent, CodeBlockDSL, Id, MApp, MContainer, MNode, MPage, MPageFragment } from '@tmagic/core';
+import type { FormConfig, TableColumnConfig } from '@tmagic/form';
 import type StageCore from '@tmagic/stage';
 import type {
   ContainerHighlightType,
@@ -65,6 +46,15 @@ import type { StageOverlayService } from './services/stageOverlay';
 import type { StorageService } from './services/storage';
 import type { UiService } from './services/ui';
 import type { UndoRedo } from './utils/undo-redo';
+
+export type EditorSlots = FrameworkSlots &
+  WorkspaceSlots &
+  SidebarSlots &
+  PropsPanelSlots & {
+    workspace(props: { editorService: EditorService }): any;
+    'workspace-content'(props: { editorService: EditorService }): any;
+  };
+
 export interface FrameworkSlots {
   header(props: {}): any;
   nav(props: {}): any;
@@ -321,9 +311,9 @@ export interface MenuButton {
   /** Vue组件或url */
   icon?: string | Component<{}, {}, any>;
   /** 是否置灰，默认为false */
-  disabled?: boolean | ((data?: Services) => boolean);
+  disabled?: boolean | ((data: Services) => boolean);
   /** 是否显示，默认为true */
-  display?: boolean | ((data?: Services) => boolean);
+  display?: boolean | ((data: Services) => boolean);
   /** type为button/dropdown时点击运行的方法 */
   handler?: (data: Services, event: MouseEvent) => Promise<any> | any;
   className?: string;
@@ -344,7 +334,7 @@ export interface MenuComponent {
   slots?: Record<string, any>;
   /** 是否显示，默认为true */
   className?: string;
-  display?: boolean | ((data?: Services) => Promise<boolean> | boolean);
+  display?: boolean | ((data: Services) => Promise<boolean> | boolean);
   [key: string]: any;
 }
 
@@ -473,9 +463,6 @@ export enum Keys {
   ESCAPE = 'Space',
 }
 
-export const H_GUIDE_LINE_STORAGE_KEY = '$MagicStageHorizontalGuidelinesData';
-export const V_GUIDE_LINE_STORAGE_KEY = '$MagicStageVerticalGuidelinesData';
-
 export interface ScrollViewerEvent {
   scrollLeft: number;
   scrollTop: number;
@@ -556,25 +543,6 @@ export interface HistoryState {
   canUndo: boolean;
 }
 
-export interface EventSelectConfig {
-  name: string;
-  type: 'event-select';
-  src: 'datasource' | 'component';
-  labelWidth?: string;
-  /** 事件名称表单配置 */
-  eventNameConfig?: FormItem;
-  /** 动作类型配置 */
-  actionTypeConfig?: FormItem;
-  /** 联动组件配置 */
-  targetCompConfig?: FormItem;
-  /** 联动组件动作配置 */
-  compActionConfig?: FormItem;
-  /** 联动代码配置 */
-  codeActionConfig?: FormItem;
-  /** 联动数据源配置 */
-  dataSourceActionConfig?: FormItem;
-}
-
 export enum KeyBindingCommand {
   /** 复制 */
   COPY_NODE = 'tmagic-system-copy-node',
@@ -630,69 +598,6 @@ export interface KeyBindingCacheItem {
   bound: boolean;
 }
 
-export interface CodeSelectColConfig extends FormItem {
-  type: 'code-select-col';
-  /** 是否可以编辑代码块，disable表示的是是否可以选择代码块 */
-  notEditable?: boolean | FilterFunction;
-}
-
-export interface PageFragmentSelectConfig extends FormItem {
-  type: 'page-fragment-select';
-}
-
-export interface DataSourceSelect extends FormItem, Input {
-  type: 'data-source-select';
-  /** 数据源类型: base、http... */
-  dataSourceType?: string;
-  /** 是否要编译成数据源的data。
-   * id: 不编译，就是要数据源id;
-   * value: 要编译（数据源data）
-   * */
-  value?: 'id' | 'value';
-  /** 是否可以编辑数据源，disable表示的是是否可以选择数据源 */
-  notEditable?: boolean | FilterFunction;
-}
-
-export interface DataSourceMethodSelectConfig extends FormItem {
-  type: 'data-source-method-select';
-  /** 是否可以编辑数据源，disable表示的是是否可以选择数据源 */
-  notEditable?: boolean | FilterFunction;
-}
-
-export interface DataSourceFieldSelectConfig extends FormItem {
-  type: 'data-source-field-select';
-  /**
-   * 是否要编译成数据源的data。
-   * key: 不编译，就是要数据源id和field name;
-   * value: 要编译（数据源data[`${filed}`]）
-   * */
-  value?: 'key' | 'value';
-  /** 是否严格的遵守父子节点不互相关联 */
-  checkStrictly?:
-    | boolean
-    | ((
-        mForm: FormState | undefined,
-        data: {
-          model: Record<any, any>;
-          values: Record<any, any>;
-          parent?: Record<any, any>;
-          formValue: Record<any, any>;
-          prop: string;
-          config: DataSourceFieldSelectConfig;
-          dataSource?: DataSourceSchema;
-        },
-      ) => boolean);
-  dataSourceFieldType?: DataSourceFieldType[];
-  fieldConfig?: ChildConfig;
-  /** 是否可以编辑数据源，disable表示的是是否可以选择数据源 */
-  notEditable?: boolean | FilterFunction;
-}
-
-export interface CondOpSelectConfig extends FormItem {
-  type: 'cond-op';
-  parentFields?: string[];
-}
-
 /** 可新增的数据源类型选项 */
 export interface DatasourceTypeOption {
   /** 数据源类型 */
@@ -720,9 +625,6 @@ export enum DragType {
   /** 拖动组件树节点 */
   LAYER_TREE = 'layer-tree',
 }
-
-/** 当uiService.get('uiSelectMode')为true,点击组件（包括任何形式，组件树/画布）时触发的事件名 */
-export const UI_SELECT_MODE_EVENT_NAME = 'ui-select';
 
 export interface TreeNodeData {
   id: Id;

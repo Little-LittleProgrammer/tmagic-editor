@@ -8,7 +8,12 @@
     :prop="config.prop"
   >
     <template v-slot="scope">
-      <TMagicForm v-if="config.type && editState[scope.$index]" label-width="0" :model="editState[scope.$index]">
+      <div v-if="config.type === 'index'">
+        {{
+          config.pageIndex && config.pageSize ? config.pageIndex * config.pageSize + scope.$index + 1 : scope.$index + 1
+        }}
+      </div>
+      <TMagicForm v-else-if="config.type && editState[scope.$index]" label-width="0" :model="editState[scope.$index]">
         <m-form-container
           :prop="config.prop"
           :rules="config.rules"
@@ -24,7 +29,7 @@
         type="primary"
         @click="config.handler?.(scope.row)"
       >
-        <span v-html="formatter(config, scope.row)"></span>
+        <span v-html="formatter(config, scope.row, { index: scope.$index })"></span>
       </TMagicButton>
 
       <a v-else-if="config.action === 'img' && config.prop" target="_blank" :href="scope.row[config.prop]"
@@ -41,7 +46,7 @@
 
       <el-tooltip v-else-if="config.action === 'tip'" placement="left">
         <template #content>
-          <div>{{ formatter(config, scope.row) }}</div>
+          <div>{{ formatter(config, scope.row, { index: scope.$index }) }}</div>
         </template>
         <TMagicButton link type="primary">{{ config.buttonText || '扩展配置' }}</TMagicButton>
       </el-tooltip>
@@ -50,9 +55,9 @@
         v-else-if="config.action === 'tag' && config.prop"
         :type="typeof config.type === 'function' ? config.type(scope.row[config.prop], scope.row) : config.type"
         close-transition
-        >{{ formatter(config, scope.row) }}</TMagicTag
+        >{{ formatter(config, scope.row, { index: scope.$index }) }}</TMagicTag
       >
-      <div v-else v-html="formatter(config, scope.row)"></div>
+      <div v-else v-html="formatter(config, scope.row, { index: scope.$index })"></div>
     </template>
   </TMagicTableColumn>
 </template>

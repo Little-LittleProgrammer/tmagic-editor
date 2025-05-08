@@ -1,5 +1,5 @@
 {
-  "version": "1.5.2",
+  "version": "1.5.17",
   "name": "@tmagic/schema",
   "type": "module",
   "main": "dist/tmagic-schema.umd.cjs",
@@ -18,9 +18,6 @@
     "types",
     "src"
   ],
-  "scripts": {
-    "build": "vite build"
-  },
   "engines": {
     "node": ">=18"
   },
@@ -29,11 +26,6 @@
     "directory": "packages/schema",
     "type": "git",
     "url": "https://github.com/Tencent/tmagic-editor.git"
-  },
-  "devDependencies": {
-    "@types/node": "^18.19.0",
-    "rimraf": "^3.0.2",
-    "vite": "^6.0.3"
   },
   "peerDependencies": {
     "typescript": "*"

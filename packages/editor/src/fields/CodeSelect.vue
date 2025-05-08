@@ -16,15 +16,15 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, watch } from 'vue';
+import { computed, watch } from 'vue';
 import { isEmpty } from 'lodash-es';
 
 import { HookCodeType, HookType } from '@tmagic/core';
 import { TMagicCard } from '@tmagic/design';
-import type { ContainerChangeEventData, FieldProps, FormItem, GroupListConfig } from '@tmagic/form';
+import type { CodeSelectConfig, ContainerChangeEventData, FieldProps, GroupListConfig } from '@tmagic/form';
 import { MContainer } from '@tmagic/form';
 
-import type { Services } from '@editor/type';
+import { useServices } from '@editor/hooks/use-services';
 
 defineOptions({
   name: 'MFieldsCodeSelect',
@@ -34,18 +34,9 @@ const emit = defineEmits<{
   change: [v: any, eventData: ContainerChangeEventData];
 }>();
 
-const services = inject<Services>('services');
+const { dataSourceService, codeBlockService } = useServices();
 
-const props = withDefaults(
-  defineProps<
-    FieldProps<
-      {
-        className?: string;
-      } & FormItem
-    >
-  >(),
-  {},
-);
+const props = withDefaults(defineProps<FieldProps<CodeSelectConfig>>(), {});
 
 const codeConfig = computed<GroupListConfig>(() => ({
   type: 'group-list',
@@ -59,7 +50,7 @@ const codeConfig = computed<GroupListConfig>(() => ({
           return index;
         }
 
-        const ds = services?.dataSourceService.getDataSourceById(model.codeId[0]);
+        const ds = dataSourceService.getDataSourceById(model.codeId[0]);
         return `${ds?.title} / ${model.codeId[1]}`;
       }
 
@@ -80,13 +71,11 @@ const codeConfig = computed<GroupListConfig>(() => ({
             { value: HookCodeType.DATA_SOURCE_METHOD, text: '数据源方法' },
           ],
           defaultValue: 'code',
-          onChange: (mForm, v: HookCodeType, { model, prop, changeRecords }) => {
+          onChange: (_mForm, v: HookCodeType, { setModel }) => {
             if (v === HookCodeType.DATA_SOURCE_METHOD) {
-              model.codeId = [];
-              changeRecords.push({ propPath: prop.replace('codeType', 'codeId'), value: [] });
+              setModel('codeId', []);
             } else {
-              model.codeId = '';
-              changeRecords.push({ propPath: prop.replace('codeType', 'codeId'), value: '' });
+              setModel('codeId', '');
             }
 
             return v;
@@ -97,16 +86,16 @@ const codeConfig = computed<GroupListConfig>(() => ({
           name: 'codeId',
           span: 18,
           labelWidth: 0,
-          display: (mForm, { model }) => model.codeType !== HookCodeType.DATA_SOURCE_METHOD,
-          notEditable: () => !services?.codeBlockService.getEditStatus(),
+          display: (_mForm, { model }) => model.codeType !== HookCodeType.DATA_SOURCE_METHOD,
+          notEditable: () => !codeBlockService.getEditStatus(),
         },
         {
           type: 'data-source-method-select',
           name: 'codeId',
           span: 18,
           labelWidth: 0,
-          display: (mForm, { model }) => model.codeType === HookCodeType.DATA_SOURCE_METHOD,
-          notEditable: () => !services?.dataSourceService.get('editable'),
+          display: (_mForm, { model }) => model.codeType === HookCodeType.DATA_SOURCE_METHOD,
+          notEditable: () => !dataSourceService.get('editable'),
         },
       ],
     },

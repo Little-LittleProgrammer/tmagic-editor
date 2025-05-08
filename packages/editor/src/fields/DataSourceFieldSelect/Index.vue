@@ -44,11 +44,11 @@ import { Coin } from '@element-plus/icons-vue';
 
 import { DataSchema } from '@tmagic/core';
 import { TMagicButton, tMagicMessage, TMagicTooltip } from '@tmagic/design';
-import type { ContainerChangeEventData, FieldProps, FormState } from '@tmagic/form';
+import type { ContainerChangeEventData, DataSourceFieldSelectConfig, FieldProps, FormState } from '@tmagic/form';
 import { DATA_SOURCE_FIELDS_SELECT_VALUE_PREFIX } from '@tmagic/utils';
 
 import MIcon from '@editor/components/Icon.vue';
-import type { DataSourceFieldSelectConfig, Services } from '@editor/type';
+import { useServices } from '@editor/hooks/use-services';
 import { removeDataSourceFieldPrefix } from '@editor/utils';
 
 import FieldSelect from './FieldSelect.vue';
@@ -83,10 +83,10 @@ watch(
   },
 );
 
-const services = inject<Services>('services');
+const { dataSourceService } = useServices();
 const mForm = inject<FormState | undefined>('mForm');
 
-const dataSources = computed(() => services?.dataSourceService.get('dataSources') || []);
+const dataSources = computed(() => dataSourceService.get('dataSources') || []);
 
 const type = computed((): string => {
   let type = props.config.fieldConfig?.type;

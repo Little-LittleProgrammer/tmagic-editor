@@ -26,7 +26,7 @@ import { cloneDeep } from 'lodash-es';
 
 import type { CodeBlockContent } from '@tmagic/core';
 import { TMagicButton, tMagicMessageBox } from '@tmagic/design';
-import type { ContainerChangeEventData, FieldProps } from '@tmagic/form';
+import type { ContainerChangeEventData, DataSourceMethodsConfig, FieldProps } from '@tmagic/form';
 import { type ColumnConfig, MagicTable } from '@tmagic/table';
 
 import CodeBlockEditor from '@editor/components/CodeBlockEditor.vue';
@@ -37,21 +37,14 @@ defineOptions({
   name: 'MFieldsDataSourceMethods',
 });
 
-const props = withDefaults(
-  defineProps<
-    FieldProps<{
-      type: 'data-source-methods';
-    }>
-  >(),
-  {
-    disabled: false,
-  },
-);
+const props = withDefaults(defineProps<FieldProps<DataSourceMethodsConfig>>(), {
+  disabled: false,
+});
 
 const emit = defineEmits(['change']);
 
 const codeConfig = ref<CodeBlockContent>();
-const codeBlockEditor = useTemplateRef<InstanceType<typeof CodeBlockEditor>>('codeBlockEditor');
+const codeBlockEditorRef = useTemplateRef<InstanceType<typeof CodeBlockEditor>>('codeBlockEditor');
 
 let editIndex = -1;
 
@@ -80,7 +73,7 @@ const methodColumns: ColumnConfig[] = [
       {
         text: '编辑',
         handler: (method: CodeBlockContent, index: number) => {
-          let codeContent = method.content || `({ params, dataSource, app }) => {\n  // place your code here\n}`;
+          let codeContent = method.content || '({ params, dataSource, app }) => {\n  // place your code here\n}';
 
           if (typeof codeContent !== 'string') {
             codeContent = codeContent.toString();
@@ -94,7 +87,7 @@ const methodColumns: ColumnConfig[] = [
           editIndex = index;
 
           nextTick(() => {
-            codeBlockEditor.value?.show();
+            codeBlockEditorRef.value?.show();
           });
         },
       },
@@ -114,14 +107,14 @@ const methodColumns: ColumnConfig[] = [
 const createCodeHandler = () => {
   codeConfig.value = {
     name: '',
-    content: `({ params, dataSource, app, flowState }) => {\n  // place your code here\n}`,
+    content: '({ params, dataSource, app, flowState }) => {\n  // place your code here\n}',
     params: [],
   };
 
   editIndex = -1;
 
   nextTick(() => {
-    codeBlockEditor.value?.show();
+    codeBlockEditorRef.value?.show();
   });
 };
 
@@ -130,7 +123,7 @@ const submitCodeHandler = (value: CodeBlockContent, data: ContainerChangeEventDa
     // 在保存的时候转换代码内容
     const parseDSL = getEditorConfig('parseDSL');
     if (typeof value.content === 'string') {
-      value.content = parseDSL<(...args: any[]) => any>(value.content);
+      value.content = parseDSL<(..._args: any[]) => any>(value.content);
     }
   }
   if (editIndex > -1) {
@@ -157,6 +150,6 @@ const submitCodeHandler = (value: CodeBlockContent, data: ContainerChangeEventDa
   editIndex = -1;
   codeConfig.value = void 0;
 
-  codeBlockEditor.value?.hide();
+  codeBlockEditorRef.value?.hide();
 };
 </script>

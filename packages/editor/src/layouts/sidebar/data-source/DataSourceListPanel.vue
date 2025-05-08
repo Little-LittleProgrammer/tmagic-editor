@@ -45,6 +45,7 @@
     :values="dataSourceValues"
     :title="dialogTitle"
     @submit="submitDataSourceHandler"
+    @close="editDialogCloseHandler"
   ></DataSourceConfigPanel>
 
   <Teleport to="body">
@@ -59,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue';
+import { computed, inject, useTemplateRef, watch } from 'vue';
 import { mergeWith } from 'lodash-es';
 
 import { TMagicButton, tMagicMessageBox, TMagicPopover, TMagicScrollbar } from '@tmagic/design';
@@ -68,14 +69,8 @@ import ContentMenu from '@editor/components/ContentMenu.vue';
 import SearchInput from '@editor/components/SearchInput.vue';
 import ToolButton from '@editor/components/ToolButton.vue';
 import { useDataSourceEdit } from '@editor/hooks/use-data-source-edit';
-import type {
-  CustomContentMenuFunction,
-  DataSourceListSlots,
-  EventBus,
-  MenuButton,
-  MenuComponent,
-  Services,
-} from '@editor/type';
+import { useServices } from '@editor/hooks/use-services';
+import type { CustomContentMenuFunction, DataSourceListSlots, EventBus, MenuButton, MenuComponent } from '@editor/type';
 
 import DataSourceConfigPanel from './DataSourceConfigPanel.vue';
 import DataSourceList from './DataSourceList.vue';
@@ -94,16 +89,32 @@ const props = defineProps<{
 }>();
 
 const eventBus = inject<EventBus>('eventBus');
-const { dataSourceService } = inject<Services>('services') || {};
+const { dataSourceService } = useServices();
 
 const { editDialog, dataSourceValues, dialogTitle, editable, editHandler, submitDataSourceHandler } =
   useDataSourceEdit(dataSourceService);
+
+const editDialogCloseHandler = () => {
+  if (dataSourceListRef.value) {
+    for (const [, status] of dataSourceListRef.value.nodeStatusMap.entries()) {
+      status.selected = false;
+    }
+  }
+};
+
+watch(dataSourceValues, (dataSourceValues) => {
+  if (dataSourceListRef.value && dataSourceValues.id) {
+    for (const [statusId, status] of dataSourceListRef.value.nodeStatusMap.entries()) {
+      status.selected = statusId === dataSourceValues.id;
+    }
+  }
+});
 
 const datasourceTypeList = computed(() =>
   [
     { text: '基础', type: 'base' },
     { text: 'HTTP', type: 'http' },
-  ].concat(dataSourceService?.get('datasourceTypeList') ?? []),
+  ].concat(dataSourceService.get('datasourceTypeList')),
 );
 
 const addHandler = (type: string) => {
@@ -113,7 +124,7 @@ const addHandler = (type: string) => {
 
   dataSourceValues.value = mergeWith(
     { type, title: datasourceType?.text },
-    dataSourceService?.getFormValue(type) || {},
+    dataSourceService.getFormValue(type),
     (objValue, srcValue) => {
       if (Array.isArray(srcValue)) {
         return srcValue;
@@ -133,13 +144,13 @@ const removeHandler = async (id: string) => {
     type: 'warning',
   });
 
-  dataSourceService?.remove(id);
+  dataSourceService.remove(id);
 };
 
-const dataSourceList = ref<InstanceType<typeof DataSourceList>>();
+const dataSourceListRef = useTemplateRef<InstanceType<typeof DataSourceList>>('dataSourceList');
 
 const filterTextChangeHandler = (val: string) => {
-  dataSourceList.value?.filter(val);
+  dataSourceListRef.value?.filter(val);
 };
 
 eventBus?.on('edit-data-source', (id: string) => {

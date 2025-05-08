@@ -24,10 +24,18 @@ import { computed, inject } from 'vue';
 import { Edit, View } from '@element-plus/icons-vue';
 
 import { TMagicButton, TMagicTooltip } from '@tmagic/design';
-import { type FieldProps, filterFunction, type FormState, MSelect, type SelectConfig } from '@tmagic/form';
+import {
+  type DataSourceSelect,
+  type FieldProps,
+  filterFunction,
+  type FormState,
+  MSelect,
+  type SelectConfig,
+} from '@tmagic/form';
 
 import MIcon from '@editor/components/Icon.vue';
-import type { DataSourceSelect, EventBus, Services } from '@editor/type';
+import { useServices } from '@editor/hooks/use-services';
+import type { EventBus } from '@editor/type';
 import { SideItemKey } from '@editor/type';
 
 defineOptions({
@@ -41,15 +49,15 @@ const props = withDefaults(defineProps<FieldProps<DataSourceSelect>>(), {
 });
 
 const mForm = inject<FormState | undefined>('mForm');
-const { dataSourceService, uiService } = inject<Services>('services') || {};
+const { dataSourceService, uiService } = useServices();
 const eventBus = inject<EventBus>('eventBus');
 
-const dataSources = computed(() => dataSourceService?.get('dataSources') || []);
+const dataSources = computed(() => dataSourceService.get('dataSources'));
 
 const notEditable = computed(() => filterFunction(mForm, props.config.notEditable, props));
 
 const hasDataSourceSidePanel = computed(() =>
-  (uiService?.get('sideBarItems') || []).find((item) => item.$key === SideItemKey.DATA_SOURCE),
+  uiService.get('sideBarItems').find((item) => item.$key === SideItemKey.DATA_SOURCE),
 );
 
 const selectConfig = computed<SelectConfig>(() => {
@@ -87,7 +95,7 @@ const editHandler = () => {
 
   const id = typeof value === 'string' ? value : value.dataSourceId;
 
-  const dataSource = dataSourceService?.getDataSourceById(id);
+  const dataSource = dataSourceService.getDataSourceById(id);
 
   if (!dataSource) return;
 

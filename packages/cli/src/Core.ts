@@ -1,4 +1,4 @@
-import path from 'path';
+import path from 'node:path';
 
 import fs from 'fs-extra';
 
@@ -6,16 +6,20 @@ import { ModuleMainFilePath, UserConfig } from './types';
 import { prepareEntryFile, resolveAppPackages } from './utils';
 
 export default class Core {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   public version = require('../package.json').version;
 
   public options: UserConfig;
 
   public moduleMainFilePath: ModuleMainFilePath = {
+    componentPackage: {},
     componentMap: {},
+    pluginPakcage: {},
     pluginMap: {},
     configMap: {},
     valueMap: {},
     eventMap: {},
+    datasourcePackage: {},
     datasourceMap: {},
     dsConfigMap: {},
     dsValueMap: {},

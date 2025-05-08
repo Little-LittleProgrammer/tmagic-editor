@@ -18,7 +18,7 @@
 
 import type { Id, MComponent, MContainer, MPage, MPageFragment } from '@tmagic/schema';
 
-import type App from './App';
+import App from './App';
 import IteratorContainer from './IteratorContainer';
 import type { default as TMagicNode } from './Node';
 import Node from './Node';
@@ -53,7 +53,7 @@ class Page extends Node {
       return;
     }
 
-    const node = new Node({
+    const node = new ((config.type && App.nodeClassMap.get(config.type)) || Node)({
       config,
       parent,
       page: this,
@@ -106,9 +106,16 @@ class Page extends Node {
   }
 
   public destroy(): void {
-    super.destroy();
+    this.nodes.forEach((node) => {
+      if (node === this) {
+        return;
+      }
+      node.destroy();
+    });
 
     this.nodes.clear();
+
+    super.destroy();
   }
 }
 

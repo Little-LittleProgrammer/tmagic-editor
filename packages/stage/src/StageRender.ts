@@ -18,8 +18,8 @@
 
 import { EventEmitter } from 'events';
 
-import { Id } from '@tmagic/schema';
-import { getElById, getHost, injectStyle, isSameDomain } from '@tmagic/utils';
+import type { Id } from '@tmagic/core';
+import { getElById, getHost, injectStyle, isSameDomain } from '@tmagic/core';
 
 import { DEFAULT_ZOOM, RenderType } from './const';
 import style from './style.css?raw';
@@ -56,6 +56,10 @@ export default class StageRender extends EventEmitter {
   public getMagicApi = () => ({
     onPageElUpdate: (el: HTMLElement) => this.emit('page-el-update', el),
     onRuntimeReady: (runtime: Runtime) => {
+      if (this.runtime) {
+        return;
+      }
+
       this.runtime = runtime;
       // @ts-ignore
       globalThis.runtime = runtime;
@@ -231,22 +235,26 @@ export default class StageRender extends EventEmitter {
     }
   }
 
-  private iframeLoadHandler = async () => {
-    if (!this.contentWindow?.magic) {
-      this.postTmagicRuntimeReady();
-    }
-
-    if (!this.contentWindow) return;
-
-    if (this.customizedRender) {
-      const el = await this.customizedRender();
-      if (el) {
-        this.contentWindow.document?.body?.appendChild(el);
+  private iframeLoadHandler = () => {
+    const handler = async () => {
+      if (!this.contentWindow?.magic) {
+        this.postTmagicRuntimeReady();
       }
-    }
 
-    this.emit('onload');
+      if (!this.contentWindow) return;
 
-    injectStyle(this.contentWindow.document, style);
+      if (this.customizedRender) {
+        const el = await this.customizedRender();
+        if (el) {
+          this.contentWindow.document?.body?.appendChild(el);
+        }
+      }
+
+      this.emit('onload');
+
+      injectStyle(this.contentWindow.document, style);
+    };
+
+    handler();
   };
 }

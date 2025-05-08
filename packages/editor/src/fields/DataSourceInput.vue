@@ -48,48 +48,39 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, nextTick, ref, useTemplateRef, watch } from 'vue';
+import { computed, nextTick, ref, useTemplateRef, watch } from 'vue';
 import { Coin } from '@element-plus/icons-vue';
 
 import type { DataSchema, DataSourceSchema } from '@tmagic/core';
 import { getDesignConfig, TMagicAutocomplete, TMagicTag } from '@tmagic/design';
-import type { FieldProps, FormItem } from '@tmagic/form';
+import type { DataSourceInputConfig, FieldProps } from '@tmagic/form';
 import { getKeysArray, isNumber } from '@tmagic/utils';
 
 import Icon from '@editor/components/Icon.vue';
-import type { Services } from '@editor/type';
+import { useServices } from '@editor/hooks/use-services';
 import { getDisplayField } from '@editor/utils/data-source';
 
 defineOptions({
   name: 'MFieldsDataSourceInput',
 });
 
-const props = withDefaults(
-  defineProps<
-    FieldProps<
-      {
-        type: 'data-source-input';
-      } & FormItem
-    >
-  >(),
-  {
-    disabled: false,
-  },
-);
+const props = withDefaults(defineProps<FieldProps<DataSourceInputConfig>>(), {
+  disabled: false,
+});
 
 const emit = defineEmits<{
   change: [value: string];
 }>();
 
-const { dataSourceService } = inject<Services>('services') || {};
+const { dataSourceService } = useServices();
 
-const autocomplete = useTemplateRef<InstanceType<typeof TMagicAutocomplete>>('autocomplete');
+const autocompleteRef = useTemplateRef<InstanceType<typeof TMagicAutocomplete>>('autocomplete');
 const isFocused = ref(false);
 const state = ref('');
 const displayState = ref<{ value: string; type: 'var' | 'text' }[]>([]);
 
-const input = computed<HTMLInputElement>(() => autocomplete.value?.inputRef?.input);
-const dataSources = computed(() => dataSourceService?.get('dataSources') || []);
+const input = computed<HTMLInputElement>(() => autocompleteRef.value?.inputRef?.input);
+const dataSources = computed(() => dataSourceService.get('dataSources'));
 
 const setDisplayState = () => {
   displayState.value = getDisplayField(dataSources.value, state.value);
@@ -112,7 +103,7 @@ const mouseupHandler = async () => {
 
   isFocused.value = true;
   await nextTick();
-  autocomplete.value?.focus();
+  autocompleteRef.value?.focus();
 
   if (focusOffset && input.value) {
     input.value.setSelectionRange(anchorOffset, focusOffset);
@@ -179,7 +170,11 @@ const curCharIsDot = (dotIndex: number) => dotIndex > -1 && dotIndex === getSele
  * @param leftCurlyBracketIndex 左大括号字符索引
  * @param cb 建议的方法
  */
-const dsQuerySearch = (queryString: string, leftCurlyBracketIndex: number, cb: (data: { value: string }[]) => void) => {
+const dsQuerySearch = (
+  queryString: string,
+  leftCurlyBracketIndex: number,
+  cb: (_data: { value: string }[]) => void,
+) => {
   let result: DataSourceSchema[] = [];
 
   if (curCharIsLeftCurlyBracket(leftCurlyBracketIndex)) {
@@ -211,7 +206,7 @@ const fieldQuerySearch = (
   queryString: string,
   leftAngleIndex: number,
   dotIndex: number,
-  cb: (data: { value: string }[]) => void,
+  cb: (_data: { value: string }[]) => void,
 ) => {
   let result: DataSchema[] = [];
 
@@ -272,7 +267,7 @@ const fieldQuerySearch = (
  * @param queryString 当前输入框内的字符串
  * @param cb 建议回调
  */
-const querySearch = (queryString: string, cb: (data: { value: string }[]) => void) => {
+const querySearch = (queryString: string, cb: (_data: { value: string }[]) => void) => {
   inputText = queryString;
 
   const selectionStart = getSelectionStart();

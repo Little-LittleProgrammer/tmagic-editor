@@ -34,28 +34,28 @@
       </template>
       <Container
         v-for="item in tabItems(tab)"
-        :key="item[mForm?.keyProp || '__key']"
+        :key="(item as Record<string, any>)[mForm?.keyProp || '__key']"
         :config="item"
         :disabled="disabled"
         :model="
           config.dynamic
             ? (name ? model[name] : model)[tabIndex]
             : tab.name
-            ? (name ? model[name] : model)[tab.name]
-            : name
-            ? model[name]
-            : model
+              ? (name ? model[name] : model)[tab.name]
+              : name
+                ? model[name]
+                : model
         "
         :last-values="
           isEmpty(lastValues)
             ? {}
             : config.dynamic
-            ? (name ? lastValues[name] : lastValues)[tabIndex]
-            : tab.name
-            ? (name ? lastValues[name] : lastValues)[tab.name]
-            : name
-            ? lastValues[name]
-            : lastValues
+              ? (name ? lastValues[name] : lastValues)[tabIndex]
+              : tab.name
+                ? (name ? lastValues[name] : lastValues)[tab.name]
+                : name
+                  ? lastValues[name]
+                  : lastValues
         "
         :is-compare="isCompare"
         :prop="config.dynamic ? `${prop}${prop ? '.' : ''}${String(tabIndex)}` : prop"

@@ -32,6 +32,7 @@
     :disabled="!editable"
     :content="codeConfig"
     @submit="submitCodeBlockHandler"
+    @close="editDialogCloseHandler"
   ></CodeBlockEditor>
 
   <Teleport to="body">
@@ -46,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, useTemplateRef } from 'vue';
+import { computed, inject, useTemplateRef, watch } from 'vue';
 
 import type { Id } from '@tmagic/core';
 import { TMagicButton, TMagicScrollbar } from '@tmagic/design';
@@ -55,6 +56,7 @@ import CodeBlockEditor from '@editor/components/CodeBlockEditor.vue';
 import ContentMenu from '@editor/components/ContentMenu.vue';
 import SearchInput from '@editor/components/SearchInput.vue';
 import { useCodeBlockEdit } from '@editor/hooks/use-code-block-edit';
+import { useServices } from '@editor/hooks/use-services';
 import type {
   CodeBlockListPanelSlots,
   CodeDeleteErrorType,
@@ -62,7 +64,6 @@ import type {
   EventBus,
   MenuButton,
   MenuComponent,
-  Services,
 } from '@editor/type';
 
 import CodeBlockList from './CodeBlockList.vue';
@@ -77,34 +78,51 @@ defineOptions({
 const props = defineProps<{
   indent?: number;
   nextLevelIndentIncrement?: number;
-  customError?: (id: Id, errorType: CodeDeleteErrorType) => any;
+  customError?: (_id: Id, _errorType: CodeDeleteErrorType) => any;
   customContentMenu: CustomContentMenuFunction;
 }>();
 
 const eventBus = inject<EventBus>('eventBus');
-const { codeBlockService } = inject<Services>('services') || {};
 
-const editable = computed(() => codeBlockService?.getEditStatus());
+const { codeBlockService } = useServices();
 
-const { codeBlockEditor, codeConfig, editCode, deleteCode, createCodeBlock, submitCodeBlockHandler } =
+const editable = computed(() => codeBlockService.getEditStatus());
+
+const { codeId, codeBlockEditor, codeConfig, editCode, deleteCode, createCodeBlock, submitCodeBlockHandler } =
   useCodeBlockEdit(codeBlockService);
 
-const codeBlockList = useTemplateRef<InstanceType<typeof CodeBlockList>>('codeBlockList');
+const codeBlockListRef = useTemplateRef<InstanceType<typeof CodeBlockList>>('codeBlockList');
 
 const filterTextChangeHandler = (val: string) => {
-  codeBlockList.value?.filter(val);
+  codeBlockListRef.value?.filter(val);
 };
 
 eventBus?.on('edit-code', (id: string) => {
   editCode(id);
 });
 
+watch(codeId, () => {
+  if (codeBlockListRef.value) {
+    for (const [statusId, status] of codeBlockListRef.value.nodeStatusMap.entries()) {
+      status.selected = statusId === codeId.value;
+    }
+  }
+});
+
+const editDialogCloseHandler = () => {
+  if (codeBlockListRef.value) {
+    for (const [, status] of codeBlockListRef.value.nodeStatusMap.entries()) {
+      status.selected = false;
+    }
+  }
+};
+
 const {
   nodeContentMenuHandler,
   menuData: contentMenuData,
   contentMenuHideHandler,
 } = useContentMenu((id: string) => {
-  codeBlockList.value?.deleteCode(id);
+  codeBlockListRef.value?.deleteCode(id);
 });
 const menuData = computed<(MenuButton | MenuComponent)[]>(() => props.customContentMenu(contentMenuData, 'code-block'));
 </script>

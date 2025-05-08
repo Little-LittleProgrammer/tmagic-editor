@@ -20,8 +20,8 @@ import { EventEmitter } from 'events';
 
 import { isEmpty } from 'lodash-es';
 
-import { createDataSourceManager, DataSourceManager, ObservedDataClass } from '@tmagic/data-source';
-import type { CodeBlockDSL, Id, JsEngine, MApp, RequestFunction } from '@tmagic/schema';
+import { createDataSourceManager, type DataSource, DataSourceManager, ObservedDataClass } from '@tmagic/data-source';
+import type { CodeBlockDSL, DataSourceSchema, Id, JsEngine, MApp, RequestFunction } from '@tmagic/schema';
 
 import Env from './Env';
 import EventHelper from './EventHelper';
@@ -31,8 +31,15 @@ import Node from './Node';
 import Page from './Page';
 import { transformStyle as defaultTransformStyle } from './utils';
 
+export type ErrorHandler = (
+  err: Error,
+  node: DataSource<DataSourceSchema> | Node | undefined,
+  info: Record<string, any>,
+) => void;
+
 export interface AppOptionsConfig {
   ua?: string;
+  env?: Env;
   config?: MApp;
   platform?: 'editor' | 'mobile' | 'tv' | 'pc';
   jsEngine?: JsEngine;
@@ -45,11 +52,18 @@ export interface AppOptionsConfig {
   transformStyle?: (style: Record<string, any>) => Record<string, any>;
   request?: RequestFunction;
   DataSourceObservedData?: ObservedDataClass;
+  errorHandler?: ErrorHandler;
 }
 
 class App extends EventEmitter {
   [x: string]: any;
-  public env: Env = new Env();
+  static nodeClassMap = new Map<string, typeof Node>();
+
+  public static registerNode<T extends typeof Node = typeof Node>(type: string, NodeClass: T) {
+    App.nodeClassMap.set(type, NodeClass);
+  }
+
+  public env!: Env;
   public dsl?: MApp;
   public codeDsl?: CodeBlockDSL;
   public dataSourceManager?: DataSourceManager;
@@ -63,13 +77,21 @@ class App extends EventEmitter {
   public request?: RequestFunction;
   public transformStyle: (style: Record<string, any>) => Record<string, any>;
   public eventHelper?: EventHelper;
+  public errorHandler?: ErrorHandler;
 
   private flexible?: Flexible;
 
   constructor(options: AppOptionsConfig) {
     super();
 
-    this.setEnv(options.ua);
+    if (options.env) {
+      this.setEnv(options.env);
+    } else {
+      this.setEnv(options.ua);
+    }
+
+    this.errorHandler = options.errorHandler;
+
     // 代码块描述内容在dsl codeBlocks字段
     this.codeDsl = options.config?.codeBlocks;
     options.platform && (this.platform = options.platform);
@@ -117,8 +139,12 @@ class App extends EventEmitter {
     }
   }
 
-  public setEnv(ua?: string) {
-    this.env = new Env(ua);
+  public setEnv<T extends Env>(ua?: string | T) {
+    if (!ua || typeof ua === 'string') {
+      this.env = new Env(ua);
+    } else {
+      this.env = ua;
+    }
   }
 
   public setDesignWidth(width: number) {
@@ -144,7 +170,12 @@ class App extends EventEmitter {
     this.dataSourceManager = createDataSourceManager(this, this.useMock);
 
     this.codeDsl = config.codeBlocks;
-    this.setPage(curPage || this.page?.data?.id);
+
+    const pageId = curPage || this.page?.data?.id;
+
+    super.emit('dsl-change', { dsl: config, curPage: pageId });
+
+    this.setPage(pageId);
 
     if (this.dataSourceManager) {
       const dataSourceList = Array.from(this.dataSourceManager.dataSourceMap.values());
@@ -162,19 +193,22 @@ class App extends EventEmitter {
       return;
     }
 
-    if (pageConfig === this.page?.data) return;
-
-    this.page?.destroy();
+    if (this.page) {
+      if (pageConfig === this.page.data) return;
+      this.page.destroy();
+    }
 
     this.page = new Page({
       config: pageConfig,
       app: this,
     });
 
-    this.eventHelper?.removeNodeEvents();
-    this.page.nodes.forEach((node) => {
-      this.eventHelper?.bindNodeEvents(node);
-    });
+    if (this.eventHelper) {
+      this.eventHelper.removeNodeEvents();
+      for (const [, node] of this.page.nodes) {
+        this.eventHelper.bindNodeEvents(node);
+      }
+    }
 
     super.emit('page-change', this.page);
   }
@@ -235,7 +269,15 @@ class App extends EventEmitter {
     if (!codeId || isEmpty(this.codeDsl)) return;
     const content = this.codeDsl?.[codeId]?.content;
     if (typeof content === 'function') {
-      await content({ app: this, params, eventParams: args, flowState });
+      try {
+        await content({ app: this, params, eventParams: args, flowState });
+      } catch (e: any) {
+        if (this.errorHandler) {
+          this.errorHandler(e, undefined, { type: 'run-code', codeId, params, eventParams: args, flowState });
+        } else {
+          throw e;
+        }
+      }
     }
   }
 
@@ -259,7 +301,15 @@ class App extends EventEmitter {
     if (!method) return;
 
     if (typeof method.content === 'function') {
-      await method.content({ app: this, params, dataSource, eventParams: args, flowState });
+      try {
+        await method.content({ app: this, params, dataSource, eventParams: args, flowState });
+      } catch (e: any) {
+        if (this.errorHandler) {
+          this.errorHandler(e, dataSource, { type: 'data-source-method', params, eventParams: args, flowState });
+        } else {
+          throw e;
+        }
+      }
     }
   }
 
@@ -271,6 +321,13 @@ class App extends EventEmitter {
     this.flexible = undefined;
 
     this.eventHelper?.destroy();
+
+    this.dsl = undefined;
+
+    this.dataSourceManager?.destroy();
+    this.dataSourceManager = undefined;
+    this.codeDsl = undefined;
+    this.components.clear();
   }
 }
 

@@ -20,17 +20,17 @@ import { datetimeFormatter } from '@tmagic/form';
 
 import type { ColumnConfig } from './schema';
 
-export const formatter = (item: ColumnConfig, row: any) => {
+export const formatter = (item: ColumnConfig, row: any, data: { index: number }) => {
   if (!item.prop) return '';
 
   if (item.formatter) {
     if (item.formatter === 'datetime') {
-      // eslint-disable-next-line no-param-reassign
       item.formatter = (value: string) => datetimeFormatter(value);
     }
     try {
-      return item.formatter(row[item.prop], row);
+      return item.formatter(row[item.prop], row, data);
     } catch (e) {
+      console.error('Formatter error:', e);
       return row[item.prop];
     }
   } else {

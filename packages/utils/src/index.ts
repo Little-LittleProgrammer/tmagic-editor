@@ -40,6 +40,7 @@ export * from './dom';
 // for typeof global checks without @types/node
 declare let global: {};
 
+// eslint-disable-next-line @typescript-eslint/naming-convention
 let _globalThis: any;
 export const getGlobalThis = (): any =>
   _globalThis ||
@@ -47,12 +48,12 @@ export const getGlobalThis = (): any =>
     typeof globalThis !== 'undefined'
       ? globalThis
       : typeof self !== 'undefined'
-      ? self
-      : typeof window !== 'undefined'
-      ? window
-      : typeof global !== 'undefined'
-      ? global
-      : {});
+        ? self
+        : typeof window !== 'undefined'
+          ? window
+          : typeof global !== 'undefined'
+            ? global
+            : {});
 
 export const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => {
@@ -160,6 +161,99 @@ export const getUrlParam = (param: string, url?: string) => {
     return '';
   }
   return '';
+};
+
+/**
+ * 设置url中指定的参数
+ *
+ * @param {string}
+ *          name [参数名]
+ * @param {string}
+ *          value [参数值]
+ * @param {string}
+ *          url [发生替换的url地址|默认为location.href]
+ * @return {string} [返回处理后的url]
+ */
+export const setUrlParam = (name: string, value: string, url = globalThis.location.href) => {
+  const reg = new RegExp(`[?&#]${name}=([^&#]*)`, 'gi');
+
+  const matches = url.match(reg);
+
+  const key = `{key${new Date().getTime()}}`;
+  let strArr;
+
+  if (matches && matches.length > 0) {
+    strArr = matches[matches.length - 1];
+  } else {
+    strArr = '';
+  }
+
+  const extra = `${name}=${value}`;
+
+  // 当原url中含有要替换的属性:value不为空时，仅对值做替换,为空时，直接把参数删除掉
+  if (strArr) {
+    const first = strArr.charAt(0);
+    url = url.replace(strArr, key);
+    url = url.replace(key, value ? first + extra : '');
+  } else if (value) {
+    // 当原url中不含有要替换的属性且value值不为空时,直接在url后面添加参数字符串
+    if (url.indexOf('?') > -1) {
+      url += `&${extra}`;
+    } else {
+      url += `?${extra}`;
+    }
+  }
+  // 其它情况直接返回原url
+  return url;
+};
+
+export const getSearchObj = (
+  search = globalThis.location.search ? globalThis.location.search.substring(1) : '',
+): Record<string, string> => {
+  return search.split('&').reduce((obj, item) => {
+    const [a, b = ''] = item.split('=');
+    return { ...obj, [a]: b };
+  }, {});
+};
+
+export const delQueStr = (url: string, ref: string[] | string) => {
+  let str = '';
+  if (url.indexOf('?') !== -1) {
+    str = url.substring(url.indexOf('?') + 1);
+  } else {
+    return url;
+  }
+  let arr = [];
+  let returnurl = '';
+
+  const isHit = Array.isArray(ref)
+    ? function (v: string) {
+        return ~ref.indexOf(v);
+      }
+    : function (v: string) {
+        return v === ref;
+      };
+
+  if (str.indexOf('&') !== -1) {
+    arr = str.split('&');
+    for (let i = 0, len = arr.length; i < len; i++) {
+      if (!isHit(arr[i].split('=')[0])) {
+        returnurl = `${returnurl + arr[i].split('=')[0]}=${arr[i].split('=')[1]}&`;
+      }
+    }
+
+    return returnurl
+      ? `${url.substr(0, url.indexOf('?'))}?${returnurl.substr(0, returnurl.length - 1)}`
+      : url.substr(0, url.indexOf('?'));
+  }
+
+  arr = str.split('=');
+
+  if (isHit(arr[0])) {
+    return url.substr(0, url.indexOf('?'));
+  }
+
+  return url;
 };
 
 export const isObject = (obj: any) => Object.prototype.toString.call(obj) === '[object Object]';
@@ -410,6 +504,7 @@ export const getDefaultValueFromFields = (fields: DataSchema[]) => {
             data[field.name] = JSON.parse(field.defaultValue);
           } catch (e) {
             data[field.name] = defaultValue.object;
+            console.warn('defaultValue 解析失败', field.defaultValue, e);
           }
           return;
         }
@@ -499,14 +594,21 @@ export const traverseNode = <T extends NodeItem = NodeItem>(
   node: T,
   cb: (node: T, parents: T[]) => void,
   parents: T[] = [],
+  evalCbAfter = false,
 ) => {
-  cb(node, parents);
+  if (!evalCbAfter) {
+    cb(node, parents);
+  }
 
   if (Array.isArray(node.items) && node.items.length) {
     parents.push(node);
     node.items.forEach((item) => {
-      traverseNode(item as T, cb, [...parents]);
+      traverseNode(item as T, cb, [...parents], evalCbAfter);
     });
+  }
+
+  if (evalCbAfter) {
+    cb(node, parents);
   }
 };
 

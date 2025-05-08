@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/naming-convention */
 /*
  * Tencent is pleased to support the open source community by making TMagicEditor available.
  *
@@ -20,8 +21,8 @@ import EventEmitter from 'events';
 
 import { cloneDeep } from 'lodash-es';
 
-import type { DataSourceSchema, default as TMagicApp, DisplayCond, Id, MNode, NODE_CONDS_KEY } from '@tmagic/core';
-import { compiledNode } from '@tmagic/core';
+import type { DataSourceSchema, default as TMagicApp, DisplayCond, Id, MNode } from '@tmagic/core';
+import { compiledNode, NODE_CONDS_KEY } from '@tmagic/core';
 
 import { SimpleObservedData } from './observed-data/SimpleObservedData';
 import { DataSource, HttpDataSource } from './data-sources';
@@ -30,15 +31,34 @@ import type { ChangeEvent, DataSourceManagerData, DataSourceManagerOptions, Obse
 import { compiledNodeField, compliedConditions, compliedIteratorItem, createIteratorContentData } from './utils';
 
 class DataSourceManager extends EventEmitter {
-  private static dataSourceClassMap = new Map<string, typeof DataSource>();
+  private static dataSourceClassMap = new Map<string, any>([
+    ['base', DataSource],
+    ['http', HttpDataSource],
+  ]);
   private static ObservedDataClass: ObservedDataClass = SimpleObservedData;
+  private static waitInitSchemaList = new Map<DataSourceManager, Record<string, DataSourceSchema[]>>();
 
   public static register<T extends typeof DataSource = typeof DataSource>(type: string, dataSource: T) {
     DataSourceManager.dataSourceClassMap.set(type, dataSource);
+    DataSourceManager.waitInitSchemaList?.forEach((listMap, app) => {
+      const list = listMap[type] || [];
+      for (let config = list.shift(); config; config = list.shift()) {
+        const ds = app.addDataSource(config);
+        if (ds) {
+          app.init(ds);
+        }
+      }
+    });
   }
 
   public static getDataSourceClass(type: string) {
     return DataSourceManager.dataSourceClassMap.get(type);
+  }
+
+  public static clearDataSourceClass() {
+    DataSourceManager.dataSourceClassMap.clear();
+    DataSourceManager.dataSourceClassMap.set('base', DataSource);
+    DataSourceManager.dataSourceClassMap.set('http', HttpDataSource);
   }
 
   public static registerObservedData(ObservedDataClass: ObservedDataClass) {
@@ -54,6 +74,8 @@ class DataSourceManager extends EventEmitter {
 
   constructor({ app, useMock, initialData }: DataSourceManagerOptions) {
     super();
+
+    DataSourceManager.waitInitSchemaList.set(this, {});
 
     this.app = app;
     this.useMock = useMock;
@@ -130,10 +152,27 @@ class DataSourceManager extends EventEmitter {
     return this.dataSourceMap.get(id);
   }
 
-  public async addDataSource(config?: DataSourceSchema) {
+  public addDataSource(config?: DataSourceSchema) {
     if (!config) return;
 
-    const DataSourceClass = DataSourceManager.dataSourceClassMap.get(config.type) || DataSource;
+    const DataSourceClass = DataSourceManager.dataSourceClassMap.get(config.type);
+
+    if (!DataSourceClass) {
+      let listMap = DataSourceManager.waitInitSchemaList.get(this);
+
+      if (!listMap) {
+        listMap = {};
+        DataSourceManager.waitInitSchemaList.set(this, listMap);
+      }
+
+      if (listMap[config.type]) {
+        listMap[config.type].push(config);
+      } else {
+        listMap[config.type] = [config];
+      }
+
+      return;
+    }
 
     const ds = new DataSourceClass({
       app: this.app,
@@ -151,6 +190,8 @@ class DataSourceManager extends EventEmitter {
     ds.on('change', (changeEvent: ChangeEvent) => {
       this.setData(ds, changeEvent);
     });
+
+    return ds;
   }
 
   public setData(ds: DataSource, changeEvent: ChangeEvent) {
@@ -177,7 +218,7 @@ class DataSourceManager extends EventEmitter {
 
       this.removeDataSource(schema.id);
 
-      this.addDataSource(schema);
+      this.addDataSource(cloneDeep(schema));
       const newDs = this.get(schema.id);
       if (newDs) {
         this.init(newDs);
@@ -276,6 +317,7 @@ class DataSourceManager extends EventEmitter {
       ds.destroy();
     });
     this.dataSourceMap.clear();
+    DataSourceManager.waitInitSchemaList.delete(this);
   }
 
   public onDataChange(id: string, path: string, callback: (newVal: any) => void) {
@@ -286,7 +328,5 @@ class DataSourceManager extends EventEmitter {
     return this.get(id)?.offDataChange(path, callback);
   }
 }
-
-DataSourceManager.register('http', HttpDataSource as any);
 
 export default DataSourceManager;

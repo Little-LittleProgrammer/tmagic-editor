@@ -17,8 +17,9 @@
  */
 
 import { getElById } from '@tmagic/core';
+import { defineFormConfig } from '@tmagic/form-schema';
 
-export default [
+export default defineFormConfig([
   {
     name: 'className',
     type: 'data-source-input',
@@ -33,16 +34,16 @@ export default [
       { value: 'absolute', text: '绝对定位' },
       { value: 'relative', text: '流式布局' },
     ],
-    onChange: (formState: any, v: string, { model }: any) => {
+    onChange: (formState: any, v: string, { model, setModel }: any) => {
       if (!model.style) return v;
       if (v === 'relative') {
-        model.style.height = 'auto';
+        setModel('style.height', 'auto');
       } else {
         const el = getElById()(formState.stage?.renderer?.contentWindow.document, model.id);
         if (el) {
-          model.style.height = el.getBoundingClientRect().height;
+          setModel('style.height', el.getBoundingClientRect().height);
         }
       }
     },
   },
-];
+]);

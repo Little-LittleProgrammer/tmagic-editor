@@ -24,14 +24,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { ArrowLeftBold, ArrowRightBold } from '@element-plus/icons-vue';
 import Sortable, { type SortableEvent } from 'sortablejs';
 
 import type { Id } from '@tmagic/core';
 
 import Icon from '@editor/components/Icon.vue';
-import type { PageBarSortOptions, Services } from '@editor/type';
+import { useServices } from '@editor/hooks/use-services';
+import type { PageBarSortOptions } from '@editor/type';
 
 defineOptions({
   name: 'MEditorPageBarScrollContainer',
@@ -42,31 +43,31 @@ const props = defineProps<{
   length: number;
 }>();
 
-const services = inject<Services>('services');
-const editorService = services?.editorService;
-const uiService = services?.uiService;
+const { editorService, uiService } = useServices();
 
-const itemsContainer = useTemplateRef<HTMLElement>('itemsContainer');
+const itemsContainerEl = useTemplateRef<HTMLElement>('itemsContainer');
 const canScroll = ref(false);
 
-const showAddPageButton = computed(() => uiService?.get('showAddPageButton'));
-const showPageListButton = computed(() => uiService?.get('showPageListButton'));
+const showAddPageButton = computed(() => uiService.get('showAddPageButton'));
+const showPageListButton = computed(() => uiService.get('showPageListButton'));
 
 const itemsContainerWidth = ref(0);
+
+const pageBarEl = useTemplateRef<HTMLDivElement>('pageBar');
 
 const setCanScroll = () => {
   // 减去新增、搜索、页面列表、左移、右移5个按钮的宽度
   // 37 = icon width 16 + padding 10 * 2 + border-right 1
   itemsContainerWidth.value =
-    (pageBar.value?.clientWidth || 0) -
+    (pageBarEl.value?.clientWidth || 0) -
     37 * 2 -
     37 -
     (showAddPageButton.value ? 37 : 21) -
     (showPageListButton.value ? 37 : 0);
 
   nextTick(() => {
-    if (itemsContainer.value) {
-      canScroll.value = itemsContainer.value.scrollWidth - itemsContainerWidth.value > 1;
+    if (itemsContainerEl.value) {
+      canScroll.value = itemsContainerEl.value.scrollWidth - itemsContainerWidth.value > 1;
     }
   });
 };
@@ -75,9 +76,8 @@ const resizeObserver = new ResizeObserver(() => {
   setCanScroll();
 });
 
-const pageBar = useTemplateRef<HTMLDivElement>('pageBar');
 onMounted(() => {
-  pageBar.value && resizeObserver.observe(pageBar.value);
+  pageBarEl.value && resizeObserver.observe(pageBarEl.value);
 });
 
 onBeforeUnmount(() => {
@@ -87,9 +87,9 @@ onBeforeUnmount(() => {
 let translateLeft = 0;
 
 const scroll = (type: 'left' | 'right' | 'start' | 'end') => {
-  if (!itemsContainer.value || !canScroll.value) return;
+  if (!itemsContainerEl.value || !canScroll.value) return;
 
-  const maxScrollLeft = itemsContainer.value.scrollWidth - itemsContainerWidth.value;
+  const maxScrollLeft = itemsContainerEl.value.scrollWidth - itemsContainerWidth.value;
 
   if (type === 'left') {
     scrollTo(translateLeft + 200);
@@ -103,8 +103,8 @@ const scroll = (type: 'left' | 'right' | 'start' | 'end') => {
 };
 
 const scrollTo = (value: number) => {
-  if (!itemsContainer.value || !canScroll.value) return;
-  const maxScrollLeft = itemsContainer.value.scrollWidth - itemsContainerWidth.value;
+  if (!itemsContainerEl.value || !canScroll.value) return;
+  const maxScrollLeft = itemsContainerEl.value.scrollWidth - itemsContainerWidth.value;
 
   if (value >= 0) {
     value = 0;
@@ -116,7 +116,7 @@ const scrollTo = (value: number) => {
 
   translateLeft = value;
 
-  itemsContainer.value.style.transform = `translate(${translateLeft}px, 0px)`;
+  itemsContainerEl.value.style.transform = `translate(${translateLeft}px, 0px)`;
 };
 
 watch(
@@ -144,7 +144,7 @@ watch(
               beforeDragList = sortable.toArray();
             },
             onUpdate: async (event: SortableEvent) => {
-              await editorService?.sort(
+              await editorService.sort(
                 beforeDragList[event.oldIndex as number],
                 beforeDragList[event.newIndex as number],
               );

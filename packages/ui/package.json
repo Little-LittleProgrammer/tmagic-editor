@@ -1,5 +1,5 @@
 {
-  "version": "1.5.2",
+  "version": "1.5.17",
   "name": "@tmagic/ui",
   "type": "module",
   "main": "dist/tmagic-ui.js",
@@ -11,9 +11,6 @@
   ],
   "engines": {
     "node": ">=18"
-  },
-  "scripts": {
-    "build": "vite build"
   },
   "license": "Apache-2.0",
   "repository": {
@@ -40,9 +37,5 @@
     "typescript": {
       "optional": true
     }
-  },
-  "devDependencies": {
-    "rimraf": "^3.0.2",
-    "vite": "^6.0.3"
   }
 }

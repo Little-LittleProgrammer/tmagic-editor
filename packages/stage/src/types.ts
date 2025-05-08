@@ -19,8 +19,8 @@
 import type { GuidesOptions } from '@scena/guides';
 import type { MoveableOptions, OnDragStart } from 'moveable';
 
+import type { Id, MApp, MContainer, MNode } from '@tmagic/core';
 import Core from '@tmagic/core';
-import type { Id, MApp, MContainer, MNode } from '@tmagic/schema';
 
 import { AbleActionEventType, ContainerHighlightType, GuidesType, RenderType, ZIndex } from './const';
 import DragResizeHelper from './DragResizeHelper';
@@ -210,6 +210,7 @@ export interface Runtime {
   update?: (data: UpdateData) => void;
   sortNode?: (data: SortEventData) => void;
   remove?: (data: RemoveData) => void;
+  [key: string]: any;
 }
 
 export interface Magic {

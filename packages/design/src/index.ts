@@ -9,7 +9,6 @@ import './theme/index.scss';
 export * from './types';
 export * from './config';
 
-/* eslint-disable @typescript-eslint/no-unused-vars */
 export { default as TMagicAutocomplete } from './Autocomplete.vue';
 export { default as TMagicBadge } from './Badge.vue';
 export { default as TMagicButton } from './Button.vue';
@@ -125,7 +124,7 @@ export default {
       tMagicMessageBox.close = options.messageBox?.close;
     }
 
-    if (options.loading) {
+    if (options.loading && !app.directive('loading')) {
       app.directive('loading', options.loading);
     }
 

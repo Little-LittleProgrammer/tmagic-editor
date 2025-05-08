@@ -228,15 +228,9 @@ import { WarningFilled } from '@element-plus/icons-vue';
 import { isEqual } from 'lodash-es';
 
 import { TMagicButton, TMagicFormItem, TMagicIcon, TMagicTooltip } from '@tmagic/design';
+import { setValueByKeyPath } from '@tmagic/utils';
 
-import type {
-  ChildConfig,
-  ContainerChangeEventData,
-  ContainerCommonConfig,
-  FormState,
-  FormValue,
-  TypeFunction,
-} from '../schema';
+import type { ChildConfig, ContainerChangeEventData, ContainerCommonConfig, FormState, FormValue } from '../schema';
 import { display as displayFunction, filterFunction, getRules } from '../utils/form';
 
 defineOptions({
@@ -306,7 +300,12 @@ const itemProp = computed(() => {
   return `${n}`;
 });
 
-const tagName = computed(() => `m-${items.value ? 'form' : 'fields'}-${type.value}`);
+const tagName = computed(() => {
+  if (type.value === 'component' && props.config.component) {
+    return props.config.component;
+  }
+  return `m-${items.value ? 'form' : 'fields'}-${type.value}`;
+});
 
 const disabled = computed(() => props.disabled || filterFunction(mForm, props.config.disabled, props));
 
@@ -320,7 +319,7 @@ const rule = computed(() => getRules(mForm, props.config.rules, props));
 
 const type = computed((): string => {
   let { type } = props.config;
-  type = type && (filterFunction<string | TypeFunction>(mForm, type, props) as string);
+  type = type && filterFunction<string>(mForm, type, props);
   if (type === 'form') return '';
   if (type === 'container') return '';
   return type?.replace(/([A-Z])/g, '-$1').toLowerCase() || (items.value ? '' : 'text');
@@ -425,6 +424,12 @@ const onChangeHandler = async function (v: any, eventData: ContainerChangeEventD
           prop: itemProp.value,
           config: props.config,
           changeRecords: newChangeRecords,
+          setModel: (key: string, value: any) => {
+            setValueByKeyPath(key, value, props.model);
+            if (props.config.name) {
+              newChangeRecords.push({ propPath: itemProp.value.replace(`${props.config.name}`, key), value });
+            }
+          },
         })) ?? value;
     }
     value = trimHandler(trim, value) ?? value;
@@ -447,7 +452,6 @@ const onChangeHandler = async function (v: any, eventData: ContainerChangeEventD
     delete eventData.modifyKey;
   } else if (isValidName() && props.model !== value && (v !== value || props.model[name.value] !== value)) {
     // field内容下包含field-link时，model===value, 这里避免循环引用
-    // eslint-disable-next-line vue/no-mutating-props
     props.model[name.value] = value;
   }
 

@@ -1,33 +1,26 @@
 <template>
-  <div v-if="display(config)" :class="className" :style="style">
+  <div @click="clickHandler">
     <slot>
-      <template v-for="(item, index) in config.items">
-        <component
-          v-if="display(item)"
-          :key="item.id"
-          :is="useComponent({ componentType: item.type, app })"
-          :data-tmagic-id="item.id"
-          :data-tmagic-iterator-index="iteratorIndex"
-          :data-tmagic-iterator-container-id="iteratorContainerId"
-          :data-container-index="index"
-          :class="item.className ? `${item.className} magic-ui-${toLine(item.type)}` : `magic-ui-${toLine(item.type)}`"
-          :style="app?.transformStyle(item.style || {})"
-          :config="{ ...item, [IS_DSL_NODE_KEY]: true }"
-          :container-index="index"
+      <template v-for="(item, index) in config.items" :key="item.id">
+        <ItemComponent
+          :config="item"
+          :index="index"
           :iterator-index="iteratorIndex"
           :iterator-container-id="iteratorContainerId"
-        ></component>
+        ></ItemComponent>
       </template>
     </slot>
   </div>
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, type PropType } from 'vue-demi';
+import { defineComponent, inject, type PropType } from 'vue-demi';
 
-import type { Id, MContainer } from '@tmagic/core';
-import { IS_DSL_NODE_KEY, toLine } from '@tmagic/core';
-import { useApp, useComponent } from '@tmagic/vue-runtime-help';
+import type TMagicApp from '@tmagic/core';
+import { COMMON_EVENT_PREFIX, type Id, type MContainer } from '@tmagic/core';
+import { registerNodeHooks, useNode } from '@tmagic/vue-runtime-help';
+
+import ItemComponent from './Component';
 
 interface ContainerSchema extends Omit<MContainer, 'id'> {
   id?: Id;
@@ -35,54 +28,43 @@ interface ContainerSchema extends Omit<MContainer, 'id'> {
 }
 
 export default defineComponent({
+  name: 'tmagic-container',
+
   props: {
     config: {
       type: Object as PropType<ContainerSchema>,
       required: true,
     },
-    iteratorIndex: Array as PropType<number[]>,
-    iteratorContainerId: Array as PropType<Id[]>,
+    iteratorIndex: {
+      type: Array as PropType<number[]>,
+      default: () => [],
+    },
+    iteratorContainerId: {
+      type: Array as PropType<Id[]>,
+      default: () => [],
+    },
+    containerIndex: Number,
     model: {
       type: Object,
       default: () => ({}),
     },
   },
 
+  components: { ItemComponent },
+
   setup(props) {
-    const { display, app } = useApp({
-      config: props.config,
-      iteratorContainerId: props.iteratorContainerId,
-      iteratorIndex: props.iteratorIndex,
-      methods: {},
-    });
+    const app = inject<TMagicApp>('app');
+    const node = useNode(props, app);
+    registerNodeHooks(node);
 
-    const className = computed(() => {
-      const list = ['magic-ui-container'];
-      if (props.config.layout) {
-        list.push(`magic-layout-${props.config.layout}`);
+    const clickHandler = () => {
+      if (app && node) {
+        app.emit(`${COMMON_EVENT_PREFIX}click`, node);
       }
-      if (props.config.className) {
-        list.push(props.config.className);
-      }
-      return list.join(' ');
-    });
-
-    const style = computed(() => {
-      if (props.config[IS_DSL_NODE_KEY]) {
-        return {};
-      }
-      return app?.transformStyle(props.config.style || {});
-    });
+    };
 
     return {
-      app,
-      className,
-      style,
-      IS_DSL_NODE_KEY,
-
-      display,
-      toLine,
-      useComponent,
+      clickHandler,
     };
   },
 });

@@ -1,5 +1,5 @@
 {
-  "version": "0.0.2",
+  "version": "0.1.0",
   "name": "@tmagic/react-button",
   "type": "module",
   "main": "src/index.ts",
@@ -13,17 +13,17 @@
     "type": "git",
     "url": "https://github.com/Tencent/tmagic-editor.git"
   },
+  "dependencies": {
+    "@tmagic/form-schema": "workspace:^"
+  },
   "peerDependencies": {
-    "@tmagic/schema": "workspace:^",
+    "@tmagic/core": "workspace:^",
     "@tmagic/react-runtime-help": "workspace:^",
     "react": ">=18.3.1",
     "react-dom": ">=18.3.1",
     "typescript": "*"
   },
   "peerDependenciesMeta": {
-    "@tmagic/schema": {
-      "optional": true
-    },
     "typescript": {
       "optional": true
     }

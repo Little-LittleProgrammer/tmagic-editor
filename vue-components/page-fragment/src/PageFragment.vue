@@ -1,20 +1,23 @@
 <template>
   <component
     :is="containerComponent"
-    class="magic-ui-page-fragment"
+    :class="className"
+    :style="style"
     :data-tmagic-id="config.id"
-    :config="config"
-    :style="app?.transformStyle(config.style || {})"
+    :config="{ ...config, [IS_DSL_NODE_KEY]: false }"
   ></component>
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue-demi';
+import { defineComponent, inject, type PropType } from 'vue-demi';
 
-import type { MPageFragment } from '@tmagic/core';
-import { useApp, useComponent } from '@tmagic/vue-runtime-help';
+import type TMagicApp from '@tmagic/core';
+import { IS_DSL_NODE_KEY, type MPageFragment } from '@tmagic/core';
+import { registerNodeHooks, useComponent, useComponentStatus, useNode } from '@tmagic/vue-runtime-help';
 
 export default defineComponent({
+  name: 'tmagic-page-fragment',
+
   props: {
     config: {
       type: Object as PropType<MPageFragment>,
@@ -27,16 +30,17 @@ export default defineComponent({
   },
 
   setup(props) {
-    const { app } = useApp({
-      config: props.config,
-      methods: {},
-    });
+    const app = inject<TMagicApp>('app');
+    const node = useNode(props, app);
+    registerNodeHooks(node);
 
     const containerComponent = useComponent({ componentType: 'container', app });
-
+    const { style, className } = useComponentStatus(props);
     return {
-      app,
+      style,
+      className,
       containerComponent,
+      IS_DSL_NODE_KEY,
     };
   },
 });

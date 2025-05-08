@@ -53,6 +53,7 @@ import type { DataSchema } from '@tmagic/core';
 import { TMagicButton, tMagicMessage, tMagicMessageBox } from '@tmagic/design';
 import {
   type ContainerChangeEventData,
+  type DataSourceFieldsConfig,
   type FieldProps,
   type FormConfig,
   type FormState,
@@ -64,28 +65,22 @@ import { getDefaultValueFromFields } from '@tmagic/utils';
 import FloatingBox from '@editor/components/FloatingBox.vue';
 import { useEditorContentHeight } from '@editor/hooks';
 import { useNextFloatBoxPosition } from '@editor/hooks/use-next-float-box-position';
-import type { Services } from '@editor/type';
+import { useServices } from '@editor/hooks/use-services';
+import { error } from '@editor/utils/logger';
 
 defineOptions({
   name: 'MFieldsDataSourceFields',
 });
 
-const props = withDefaults(
-  defineProps<
-    FieldProps<{
-      type: 'data-source-fields';
-    }>
-  >(),
-  {
-    disabled: false,
-  },
-);
+const props = withDefaults(defineProps<FieldProps<DataSourceFieldsConfig>>(), {
+  disabled: false,
+});
 
 const emit = defineEmits<{
   change: [v: any, eventData?: ContainerChangeEventData];
 }>();
 
-const services = inject<Services>('services');
+const { uiService } = useServices();
 
 const fieldValues = ref<Record<string, any>>({});
 const fieldTitle = ref('');
@@ -144,6 +139,7 @@ const fieldColumns: ColumnConfig[] = [
       try {
         return JSON.stringify(row.defaultValue);
       } catch (e) {
+        error(e);
         return row.defaultValue;
       }
     },
@@ -193,9 +189,9 @@ const dataSourceFieldsConfig: FormConfig = [
       { text: 'null', value: 'null' },
       { text: 'any', value: 'any' },
     ],
-    onChange: (formState, v: string, { model }) => {
+    onChange: (_formState, v: string, { setModel }) => {
       if (!['any', 'array', 'object'].includes(v)) {
-        model.fields = [];
+        setModel('fields', []);
       }
       return v;
     },
@@ -344,5 +340,5 @@ const addFromJsonDialogVisible = defineModel<boolean>('visible1', { default: fal
 const { height: editorHeight } = useEditorContentHeight();
 
 const parentFloating = inject<Ref<HTMLDivElement | null>>('parentFloating', ref(null));
-const { boxPosition, calcBoxPosition } = useNextFloatBoxPosition(services?.uiService, parentFloating);
+const { boxPosition, calcBoxPosition } = useNextFloatBoxPosition(uiService, parentFloating);
 </script>
